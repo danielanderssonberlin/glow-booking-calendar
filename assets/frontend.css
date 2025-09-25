@@ -1,0 +1,49 @@
+.glowbc-calendar-wrapper {
+  display: flex;
+  gap: 20px;
+}
+.glowbc-calendar {
+  border-collapse: collapse;
+  width: 300px;
+  text-align: center;
+}
+.glowbc-calendar th,
+.glowbc-calendar td {
+  border: 1px solid #ccc;
+  padding: 6px;
+}
+.glowbc-calendar .desc {
+  font-size: 0.8em;
+  color: #555;
+}
+.status-verfuegbar { background: #cfc; }
+.status-gebucht    { background: #fcc; }
+
+.glowbc-calendar td.status-frei {
+    background: #d4edda;
+}
+.glowbc-calendar td.status-booked {
+    background: #f8d7da;
+}
+.glowbc-calendar td.status-changeover1 {
+    background: linear-gradient(135deg, rgba(212,237,218,1) 0 50%, #f8d7da 50% 100%);
+}
+
+.glowbc-calendar td.status-changeover2 {
+    background: linear-gradient(225deg, rgba(212,237,218,1) 0 50%, #f8d7da 50% 100%);
+}
+
+.glowbc-next-month,
+.glowbc-prev-month,
+.glowbc-next-month:hover,
+.glowbc-prev-month:hover {
+    padding: 0px 7px 2px;
+    background: #ccc;
+    color: #fff;
+    border: none;
+    font-size: 20px;
+}
+.glowbc-next-month:hover,
+.glowbc-prev-month:hover {
+    color: #000;
+}

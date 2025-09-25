@@ -1,0 +1,60 @@
+/* Layout */
+.glowbc-layout { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
+.glowbc-table-wrap { overflow: auto; }
+
+/* Controls */
+.glowbc-calid-form { margin: 12px 0 16px; display: flex; gap: 12px; align-items: center; }
+.glowbc-calid-form label { display: inline-flex; gap: 6px; align-items: center; }
+
+/* Calendar */
+.glowbc-calendar { border: 1px solid #dcdcde; background: #fff; border-radius: 4px; }
+.glowbc-cal-header { display: grid; grid-template-columns: 32px 1fr 32px; align-items: center; padding: 8px 8px; border-bottom: 1px solid #eee; }
+.glowbc-month-label { text-align: center; font-weight: 600; }
+.glowbc-nav { text-decoration: none; font-size: 16px; color: #1d2327; display: inline-flex; justify-content: center; }
+.glowbc-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+.glowbc-weekdays { gap: 0; background: #f6f7f7; border-bottom: 1px solid #eee; }
+.glowbc-weekday { text-align: center; padding: 6px 4px; font-weight: 600; color: #50575e; }
+.glowbc-days { gap: 0; }
+.glowbc-day { position: relative; min-height: 44px; border: 1px solid #f0f0f1; display: flex; align-items: flex-start; justify-content: flex-end; padding: 4px; background: #fff; cursor: pointer; }
+.glowbc-day.empty { background: #fafafa; border: 1px solid #f4f4f5; cursor: default; }
+.glowbc-day .num { font-size: 12px; color: #1d2327; }
+.glowbc-day:hover { outline: 2px solid #2271b1; outline-offset: -2px; }
+
+.glowbc-bulk-edit {
+    padding: 20px;
+    border-top: 1px solid #ddd;
+    margin-top: 20px;
+}
+label.full,
+label.full input,
+label.full select {
+    width: 100%;
+}
+
+
+/* Legend */
+.glowbc-legend { display: flex; gap: 10px; padding: 8px; border-top: 1px solid #eee; font-size: 12px; color: #50575e; }
+.legend-box { display: inline-block; width: 14px; height: 14px; margin-right: 6px; vertical-align: text-bottom; border: 1px solid #d0d0d0; background: #fff; }
+
+/* Table */
+.glowbc-table .glowbc-status { margin-left: 8px; color: #2271b1; }
+.glowbc-row-focus { animation: glowbcFlash 1.2s ease; }
+@keyframes glowbcFlash { 0% { background: #fffae6; } 100% { background: transparent; } }
+
+/* Statusfarben nur für Kalendertage anwenden */
+/* gebucht = rot */
+.glowbc-day.status-gebucht { background: #ffebee; }
+.glowbc-day.status-gebucht::after { content: ""; position: absolute; inset: 0; background: rgba(198, 40, 40, 0.7); }
+
+/* changeover1 = diagonal halb rot (rot -> weiß, von links unten nach rechts oben) */
+.glowbc-day.status-changeover1 { background: #fff; }
+.glowbc-day.status-changeover1::after { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(198,40,40,0) 0 50%, rgba(198,40,40,0.75) 50% 100%)}
+
+/* changeover2 = links rot, rechts weiß (vertikal halbiert) */
+.glowbc-day.status-changeover2 { background: #fff; }
+.glowbc-day.status-changeover2::after { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(198,40,40,0.75) 0 50%, rgba(198,40,40,0) 50% 100%); }
+
+/* Legende Visuals (kleine Kästchen) */
+.legend-box.status-gebucht { background: linear-gradient(0deg, rgba(198,40,40,0.75), rgba(198,40,40,0.75)); }
+.legend-box.status-changeover1 { background: linear-gradient(135deg, rgba(198,40,40,0) 0 50%, rgba(198,40,40,0.75) 50% 100%); }
+.legend-box.status-changeover2 { background: linear-gradient(135deg, rgba(198,40,40,0.75) 0 50%, rgba(198,40,40,0) 50% 100%); }
