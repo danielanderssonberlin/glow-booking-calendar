@@ -1022,7 +1022,7 @@ function glowbc_render_requests_page(){
     foreach($rows as $r){
         $f = json_decode($r['fields'] ?? '{}', true) ?: [];
         $id = intval($r['id']);
-        $period = esc_html(substr($r['start_date'],0,10).' – '.substr($r['end_date'],0,10));
+        $period = esc_html(date_i18n('d.m.Y', strtotime($r['start_date'])) . ' – ' . date_i18n('d.m.Y', strtotime($r['end_date'])));
         $name = esc_html(($f['first_name'] ?? '').' '.($f['last_name'] ?? ''));
         $email = esc_html(($f['email'] ?? ''));
         $persons = intval($f['persons'] ?? 1);
