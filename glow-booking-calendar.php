@@ -488,6 +488,7 @@ class GlowBookingCalendar {
 
         echo '<div class="glowbc-bulk-edit">';
         echo '<h2>Bulk Edit Verfügbarkeit</h2>';
+        echo '<p style="margin-top:6px;color:#50575e;">Tipp: Start- und Enddatum kannst du auch direkt im Kalender auswählen.</p>';
         echo '<form id="glowbc-bulk-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">';
         echo '<input type="hidden" name="calendar_id" value="'.esc_attr($calendar_id).'" />';
 
@@ -505,6 +506,7 @@ class GlowBookingCalendar {
 
         echo '<button type="submit" class="button button-primary">Speichern</button>';
         echo '<span class="glowbc-bulk-status"></span>';
+        echo '<span class="glowbc-bulk-range" style="margin-left:8px;color:#50575e;"></span>';
 
         echo '</form></div>';
 
@@ -1104,12 +1106,15 @@ function glowbc_ajax_accept_request(){
             "SELECT id FROM {$table} WHERE calendar_id=%d AND start_date >= %s AND end_date <= %s ORDER BY id DESC LIMIT 1",
             $calendar_id, $start_dt, $end_dt
         ));
+        $isStart = ($ymd === $start->format('Y-m-d'));
+        $isEnd   = ($ymd === $end->format('Y-m-d'));
+        $availability = $isStart ? 'changeover1' : ($isEnd ? 'changeover2' : 'gebucht');
         $data = [
             'calendar_id' => $calendar_id,
             'form_id'     => null,
             'start_date'  => $start_dt,
             'end_date'    => $end_dt,
-            'fields'      => wp_json_encode(['availability'=>'gebucht','description'=>$desc]),
+            'fields'      => wp_json_encode(['availability'=>$availability,'description'=>$desc]),
             'status'      => 'accepted',
             'is_read'     => 1,
         ];

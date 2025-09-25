@@ -53,9 +53,60 @@
     if (availability) $cell.addClass('status-'+availability);
   }
 
-  // Klick im Kalender -> entsprechende Tabellenzeile finden & Fokus setzen
+  // Klick im Kalender:
+  // 1) Bereichsauswahl für Bulk-Edit (Start/Ende setzen, visuell markieren)
+  // 2) Tabellenzeile zum Datum fokussieren
   $(document).on('click', '.glowbc-calendar .glowbc-day', function(){
     const date = $(this).data('date');
+    if (!date) return; // leere Zellen ignorieren
+
+    const $cal = $('.glowbc-calendar').first();
+    let selStart = $cal.data('selStart') || null;
+    let selEnd   = $cal.data('selEnd') || null;
+
+    // Auswahl-Logik: erster Klick = Start; zweiter Klick = Ende; dritter Klick = neue Auswahl
+    if (!selStart || (selStart && selEnd)) {
+      selStart = date; selEnd = null;
+    } else {
+      // nur Start gesetzt -> Ende setzen (automatisch sortieren)
+      if (date < selStart) { selEnd = selStart; selStart = date; } else { selEnd = date; }
+    }
+
+    $cal.data('selStart', selStart);
+    $cal.data('selEnd', selEnd);
+
+    // Visuelle Markierung zurücksetzen
+    const $days = $('.glowbc-calendar .glowbc-day');
+    $days.removeClass('glowbc-selected glowbc-inrange');
+
+    // Start markieren
+    if (selStart) {
+      $days.filter('[data-date="'+selStart+'"]').addClass('glowbc-selected');
+    }
+    // Ende markieren + In-Range hervorheben
+    if (selStart && selEnd) {
+      $days.filter('[data-date="'+selEnd+'"]').addClass('glowbc-selected');
+      $days.each(function(){
+        const d = $(this).data('date');
+        if (d && d > selStart && d < selEnd) $(this).addClass('glowbc-inrange');
+      });
+    }
+
+    // Bulk-Formular aktualisieren
+    const $form = $('#glowbc-bulk-form');
+    if ($form.length) {
+      if (selStart) $form.find('input[name="start_date"]').val(selStart);
+      if (selEnd)   $form.find('input[name="end_date"]').val(selEnd);
+      if (!selEnd)  $form.find('input[name="end_date"]').val('');
+
+      const fmt = (ymd) => { const [y,m,d] = ymd.split('-'); return `${d}.${m}.${y}`; };
+      const $label = $('.glowbc-bulk-range');
+      if (selStart && selEnd)      $label.text(fmt(selStart) + ' – ' + fmt(selEnd));
+      else if (selStart && !selEnd) $label.text(fmt(selStart));
+      else                          $label.text('');
+    }
+
+    // Tabellenzeile zum geklickten Datum fokussieren (wie zuvor)
     const $row = $('.glowbc-table tr[data-date="'+date+'"]').first();
     if ($row.length) {
       $row[0].scrollIntoView({behavior:'smooth', block:'center'});

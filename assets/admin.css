@@ -41,6 +41,10 @@ label.full select {
 .glowbc-row-focus { animation: glowbcFlash 1.2s ease; }
 @keyframes glowbcFlash { 0% { background: #fffae6; } 100% { background: transparent; } }
 
+/* Auswahl-Styles für Bulk-Range im Kalender */
+.glowbc-day.glowbc-selected { outline: 2px solid #2271b1; outline-offset: -2px; }
+.glowbc-day.glowbc-inrange { box-shadow: inset 0 0 0 2px rgba(34,113,177,0.4); background-color: rgba(34,113,177,0.06); }
+
 /* Statusfarben nur für Kalendertage anwenden */
 /* gebucht = rot */
 .glowbc-day.status-gebucht { background: #ffebee; }
