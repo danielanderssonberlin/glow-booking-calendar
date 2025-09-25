@@ -33,6 +33,15 @@
     background: linear-gradient(225deg, rgba(212,237,218,1) 0 50%, #f8d7da 50% 100%);
 }
 
+/* Selection styles for request range */
+.glowbc-calendar td.glowbc-selected {
+    outline: 2px solid #007cba;
+    position: relative;
+}
+.glowbc-calendar td.glowbc-inrange {
+    box-shadow: inset 0 0 0 2px rgba(0,124,186,0.4);
+}
+
 .glowbc-next-month,
 .glowbc-prev-month,
 .glowbc-next-month:hover,

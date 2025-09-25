@@ -183,7 +183,7 @@ class GlowBookingCalendar {
                 $status = 'status-frei';
             }
 
-            $html .= '<td class="' . $status . '">' . $day . '</td>';
+            $html .= '<td class="' . $status . '" data-date="' . esc_attr($date) . '">' . $day . '</td>';
 
             if(($day + $first_day_week - 1) % 7 == 0) {
                 $html .= '</tr><tr>';
@@ -807,3 +807,316 @@ add_shortcode('glowbc_calendar', function($atts){
     echo '<div class="glowbc-frontend-calendar" data-calendar-id="'.esc_attr($atts['id']).'"></div>';
     return ob_get_clean();
 });
+
+// ===== Frontend Booking Request Shortcode =====
+add_shortcode('glowbc_request_form', function($atts){
+    $atts = shortcode_atts([
+        'id' => 1,
+    ], $atts, 'glowbc_request_form');
+
+    // Always use calendar_id=1 for now
+    $calendar_id = 1;
+
+    ob_start();
+    ?>
+    <div class="glowbc-request">
+        <div class="glowbc-frontend-calendar" data-calendar-id="<?php echo esc_attr($calendar_id); ?>"></div>
+
+        <form id="glowbc-request-form" class="glowbc-request-form" style="margin-top:16px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <input type="hidden" name="action" value="glowbc_create_request" />
+            <input type="hidden" name="nonce" value="<?php echo esc_attr(wp_create_nonce('glowbc-nonce')); ?>" />
+            <input type="hidden" name="calendar_id" value="<?php echo esc_attr($calendar_id); ?>" />
+            <input type="hidden" name="start_date" id="glowbc-start-date" />
+            <input type="hidden" name="end_date" id="glowbc-end-date" />
+
+            <div style="grid-column:1 / -1;">Bitte wählen Sie im Kalender einen Zeitraum (Start- und Enddatum) aus.</div>
+
+            <label>Vorname*<br><input type="text" name="first_name" required></label>
+            <label>Nachname*<br><input type="text" name="last_name" required></label>
+            <label>E-Mail*<br><input type="email" name="email" required></label>
+            <label>Straße<br><input type="text" name="street"></label>
+
+            <label>Anzahl der Personen*<br>
+                <select name="persons" required>
+                    <?php for($i=1;$i<=10;$i++): ?><option value="<?php echo $i; ?>"><?php echo $i; ?></option><?php endfor; ?>
+                </select>
+            </label>
+
+            <label>Anzahl der Kinder (bis inkl. 6 Jahre)<br>
+                <select name="kids_0_6">
+                    <?php for($i=0;$i<=10;$i++): ?><option value="<?php echo $i; ?>"><?php echo $i; ?></option><?php endfor; ?>
+                </select>
+            </label>
+
+            <label>Anzahl der Kinder (7–16 Jahre)<br>
+                <select name="kids_7_16">
+                    <?php for($i=0;$i<=10;$i++): ?><option value="<?php echo $i; ?>"><?php echo $i; ?></option><?php endfor; ?>
+                </select>
+            </label>
+
+            <label class="full" style="grid-column:1 / -1;">Ihre Nachricht<br>
+                <textarea name="message" rows="4" style="width:100%"></textarea>
+            </label>
+
+            <div style="grid-column:1 / -1; display:flex; gap:12px; align-items:center;">
+                <button type="submit" class="button">Anfragen</button>
+                <span class="glowbc-request-status"></span>
+                <span class="glowbc-selected-range-label"></span>
+            </div>
+        </form>
+    </div>
+    <script>
+    (function($){
+        // Range selection on frontend calendar
+        var startDate = null, endDate = null;
+
+        function ymd(d){ return d.toISOString().slice(0,10); }
+        function parseYmd(s){ var t = new Date(s+'T00:00:00'); return isNaN(t) ? null : t; }
+
+        function clearSelection(){
+            startDate = endDate = null;
+            $('#glowbc-start-date, #glowbc-end-date').val('');
+            $('.glowbc-calendar td').removeClass('glowbc-selected glowbc-inrange');
+            $('.glowbc-selected-range-label').text('');
+        }
+        function markSelection(){
+            $('.glowbc-calendar td').removeClass('glowbc-selected glowbc-inrange');
+            if(!startDate) return;
+            var s = ymd(startDate); var e = endDate ? ymd(endDate) : s;
+            var cur = new Date(startDate.getTime());
+            $('.glowbc-calendar td[data-date="'+s+'"]').addClass('glowbc-selected');
+            while(ymd(cur) < e){
+                cur.setDate(cur.getDate()+1);
+                $('.glowbc-calendar td[data-date="'+ymd(cur)+'"]').addClass('glowbc-inrange');
+            }
+            $('#glowbc-start-date').val(s);
+            $('#glowbc-end-date').val(e);
+            $('.glowbc-selected-range-label').text('Ausgewählt: '+s+' bis '+e);
+        }
+
+        // Only allow clicking on free or changeover cells
+        $(document).on('click', '.glowbc-calendar td.status-frei, .glowbc-calendar td.status-changeover1, .glowbc-calendar td.status-changeover2', function(){
+            var d = $(this).data('date');
+            if(!d) return;
+            var dt = parseYmd(d);
+            if(!startDate){ startDate = dt; endDate = null; markSelection(); return; }
+            if(!endDate){
+                if(dt < startDate){ var tmp=startDate; startDate=dt; endDate=tmp; } else { endDate = dt; }
+                markSelection();
+                return;
+            }
+            // If already both set, start a new selection
+            startDate = dt; endDate = null; markSelection();
+        });
+
+        // Handle submit
+        $(document).on('submit', '#glowbc-request-form', function(e){
+            e.preventDefault();
+            var $form = $(this);
+            var $status = $form.find('.glowbc-request-status').text('Sende …');
+            if(!$('#glowbc-start-date').val() || !$('#glowbc-end-date').val()){
+                $status.text('Bitte Zeitraum im Kalender wählen.');
+                return;
+            }
+            $.post(GlowBC.ajaxUrl, $form.serialize())
+             .done(function(res){
+                if(res && res.success){
+                    $status.css('color','green').text('Anfrage gesendet. Wir melden uns!');
+                    clearSelection();
+                    $form[0].reset();
+                } else {
+                    var msg = (res && res.data && res.data.message) ? res.data.message : 'Fehler';
+                    $status.css('color','red').text(msg);
+                }
+             })
+             .fail(function(){ $status.css('color','red').text('Netzwerkfehler'); });
+        });
+    })(jQuery);
+    </script>
+    <?php
+    return ob_get_clean();
+});
+
+// ===== AJAX: Create Request (Public) =====
+function glowbc_ajax_create_request(){
+    check_ajax_referer('glowbc-nonce', 'nonce');
+
+    global $wpdb; $table = $wpdb->prefix.'glow_bookings';
+    $calendar_id = 1;
+
+    $start_raw = sanitize_text_field($_POST['start_date'] ?? '');
+    $end_raw   = sanitize_text_field($_POST['end_date'] ?? '');
+
+    if (!$start_raw || !$end_raw || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_raw) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_raw)) {
+        wp_send_json_error(['message' => 'Bitte gültigen Zeitraum wählen.']);
+    }
+
+    $start = $start_raw.' 00:00:00';
+    $end   = $end_raw.' 23:59:59';
+
+    $first_name = sanitize_text_field($_POST['first_name'] ?? '');
+    $last_name  = sanitize_text_field($_POST['last_name'] ?? '');
+    $email      = sanitize_email($_POST['email'] ?? '');
+    $street     = sanitize_text_field($_POST['street'] ?? '');
+    $persons    = intval($_POST['persons'] ?? 1);
+    $kids_0_6   = intval($_POST['kids_0_6'] ?? 0);
+    $kids_7_16  = intval($_POST['kids_7_16'] ?? 0);
+    $message    = wp_kses_post($_POST['message'] ?? '');
+
+    if(!$first_name || !$last_name || !$email || $persons < 1){
+        wp_send_json_error(['message' => 'Bitte Pflichtfelder ausfüllen.']);
+    }
+
+    $fields = [
+        'type' => 'request',
+        'first_name' => $first_name,
+        'last_name' => $last_name,
+        'email' => $email,
+        'street' => $street,
+        'persons' => $persons,
+        'kids_0_6' => $kids_0_6,
+        'kids_7_16' => $kids_7_16,
+        'message' => $message,
+        'availability' => '',
+        'description' => '',
+    ];
+
+    // Optional: simple conflict check for already booked overlap
+    $conflict = $wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$table} WHERE calendar_id=%d AND status='accepted' AND NOT (end_date < %s OR start_date > %s)",
+        $calendar_id, $start, $end
+    ));
+    if(intval($conflict) > 0){
+        wp_send_json_error(['message' => 'Der gewählte Zeitraum ist bereits (teilweise) belegt.']);
+    }
+
+    $wpdb->insert($table, [
+        'calendar_id' => $calendar_id,
+        'form_id'     => null,
+        'start_date'  => $start,
+        'end_date'    => $end,
+        'fields'      => wp_json_encode($fields),
+        'status'      => 'pending',
+        'is_read'     => 0,
+    ]);
+
+    wp_send_json_success(['message' => 'Anfrage gespeichert']);
+}
+add_action('wp_ajax_nopriv_glowbc_create_request', 'glowbc_ajax_create_request');
+add_action('wp_ajax_glowbc_create_request', 'glowbc_ajax_create_request');
+
+// ===== Admin Submenu: Requests =====
+function glowbc_render_requests_page(){
+    if(!current_user_can('manage_options')){ wp_die('Unauthorized'); }
+    global $wpdb; $table = $wpdb->prefix.'glow_bookings';
+    $rows = $wpdb->get_results("SELECT * FROM {$table} WHERE status='pending' ORDER BY start_date ASC", ARRAY_A);
+
+    echo '<div class="wrap"><h1>Anfragen</h1>';
+    echo '<table class="widefat fixed striped"><thead><tr>'
+       . '<th>ID</th><th>Zeitraum</th><th>Name</th><th>E-Mail</th><th>Personen</th><th>Kinder 0-6</th><th>Kinder 7-16</th><th>Nachricht</th><th>Aktion</th>'
+       . '</tr></thead><tbody>';
+
+    foreach($rows as $r){
+        $f = json_decode($r['fields'] ?? '{}', true) ?: [];
+        $id = intval($r['id']);
+        $period = esc_html(substr($r['start_date'],0,10).' – '.substr($r['end_date'],0,10));
+        $name = esc_html(($f['first_name'] ?? '').' '.($f['last_name'] ?? ''));
+        $email = esc_html(($f['email'] ?? ''));
+        $persons = intval($f['persons'] ?? 1);
+        $k06 = intval($f['kids_0_6'] ?? 0);
+        $k716 = intval($f['kids_7_16'] ?? 0);
+        $msg = esc_html($f['message'] ?? '');
+        echo '<tr data-id="'.$id.'">'
+           . '<td>'.$id.'</td>'
+           . '<td>'.$period.'</td>'
+           . '<td>'.$name.'</td>'
+           . '<td>'.$email.'</td>'
+           . '<td>'.$persons.'</td>'
+           . '<td>'.$k06.'</td>'
+           . '<td>'.$k716.'</td>'
+           . '<td style="max-width:280px">'.$msg.'</td>'
+           . '<td><button class="button glowbc-req-accept" data-id="'.$id.'">Accept</button></td>'
+           . '</tr>';
+    }
+    if(empty($rows)){
+        echo '<tr><td colspan="9">Keine Anfragen</td></tr>';
+    }
+    echo '</tbody></table>';
+    ?>
+    <script>
+    (function($){
+        $(document).on('click','.glowbc-req-accept', function(){
+            var id = $(this).data('id');
+            var $btn = $(this); $btn.prop('disabled', true).text('Verarbeite …');
+            $.post(ajaxurl, {action:'glowbc_accept_request', nonce:'<?php echo esc_js(wp_create_nonce('glowbc-nonce')); ?>', id:id}, function(res){
+                if(res && res.success){
+                    $btn.closest('tr').fadeOut(200, function(){ $(this).remove(); });
+                } else {
+                    alert((res && res.data && res.data.message) ? res.data.message : 'Fehler');
+                    $btn.prop('disabled', false).text('Accept');
+                }
+            });
+        });
+    })(jQuery);
+    </script>
+    <?php
+    echo '</div>';
+}
+add_action('admin_menu', function(){
+    add_submenu_page(
+        'glow-booking-calendar',
+        'Anfragen',
+        'Anfragen',
+        'manage_options',
+        'glow-booking-requests',
+        'glowbc_render_requests_page'
+    );
+});
+
+// ===== AJAX: Accept Request (Admin) =====
+function glowbc_ajax_accept_request(){
+    check_ajax_referer('glowbc-nonce', 'nonce');
+    if(!current_user_can('manage_options')){ wp_send_json_error(['message'=>'Unauthorized'], 403); }
+
+    global $wpdb; $table = $wpdb->prefix.'glow_bookings';
+    $id = intval($_POST['id'] ?? 0);
+    if(!$id){ wp_send_json_error(['message'=>'Ungültige Anfrage-ID']); }
+
+    $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d", $id), ARRAY_A);
+    if(!$row){ wp_send_json_error(['message'=>'Anfrage nicht gefunden']); }
+
+    $calendar_id = 1;
+    $start = new DateTimeImmutable(substr($row['start_date'],0,10));
+    $end   = new DateTimeImmutable(substr($row['end_date'],0,10));
+    $fields = json_decode($row['fields'] ?? '{}', true) ?: [];
+    $desc = trim(($fields['first_name'] ?? '').' '.($fields['last_name'] ?? '')).' ('.$row['start_date'].'–'.$row['end_date'].')';
+
+    // Create bookings for each day
+    for($d=$start; $d <= $end; $d = $d->modify('+1 day')){
+        $ymd = $d->format('Y-m-d');
+        // upsert day directly
+        $start_dt = $ymd.' 00:00:00';
+        $end_dt   = $ymd.' 23:59:59';
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table} WHERE calendar_id=%d AND start_date >= %s AND end_date <= %s ORDER BY id DESC LIMIT 1",
+            $calendar_id, $start_dt, $end_dt
+        ));
+        $data = [
+            'calendar_id' => $calendar_id,
+            'form_id'     => null,
+            'start_date'  => $start_dt,
+            'end_date'    => $end_dt,
+            'fields'      => wp_json_encode(['availability'=>'gebucht','description'=>$desc]),
+            'status'      => 'accepted',
+            'is_read'     => 1,
+        ];
+        if($existing){ $wpdb->update($table, $data, ['id'=>intval($existing)]); }
+        else { $wpdb->insert($table, $data); }
+    }
+
+    // Mark request as accepted
+    $wpdb->update($table, ['status'=>'accepted','is_read'=>1], ['id'=>$id]);
+
+    wp_send_json_success(['message'=>'Anfrage akzeptiert und im Kalender eingetragen.']);
+}
+add_action('wp_ajax_glowbc_accept_request', 'glowbc_ajax_accept_request');
