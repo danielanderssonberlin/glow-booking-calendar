@@ -891,7 +891,10 @@ add_shortcode('glowbc_request_form', function($atts){
             }
             $('#glowbc-start-date').val(s);
             $('#glowbc-end-date').val(e);
-            $('.glowbc-selected-range-label').text('Ausgewählt: '+s+' bis '+e);
+            var sDisp = startDate.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit', year:'numeric'});
+            var eDateObj = endDate ? endDate : startDate;
+            var eDisp = eDateObj.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit', year:'numeric'});
+            $('.glowbc-selected-range-label').text('Ausgewählt: '+sDisp+' – '+eDisp);
         }
 
         // Only allow clicking on free or changeover cells
@@ -983,8 +986,8 @@ function glowbc_ajax_create_request(){
 
     // Optional: simple conflict check for already booked overlap
     $conflict = $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM {$table} WHERE calendar_id=%d AND status='accepted' AND NOT (end_date < %s OR start_date > %s)",
-        $calendar_id, $start, $end
+        "SELECT COUNT(*) FROM {$table} WHERE calendar_id=%d AND status='accepted' AND fields LIKE %s AND NOT (end_date < %s OR start_date > %s)",
+        $calendar_id, '%"availability":"gebucht"%', $start, $end
     ));
     if(intval($conflict) > 0){
         wp_send_json_error(['message' => 'Der gewählte Zeitraum ist bereits (teilweise) belegt.']);

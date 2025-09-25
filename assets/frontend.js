@@ -30,7 +30,7 @@ console.log(currentMonth);
     if($btn.hasClass('glowbc-prev-month')){
       date.setMonth(date.getMonth() - 1);
     } else {
-      date.setMonth(date.getMonth() + 3);
+      date.setMonth(date.getMonth() + 1);
     }
 
     var monthStr = date.toISOString().slice(0,7);

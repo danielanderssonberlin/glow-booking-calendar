@@ -40,6 +40,13 @@
 }
 .glowbc-calendar td.glowbc-inrange {
     box-shadow: inset 0 0 0 2px rgba(0,124,186,0.4);
+    background-color: rgba(0,124,186,0.08);
+}
+/* Make selectable cells clickable */
+.glowbc-calendar td.status-frei,
+.glowbc-calendar td.status-changeover1,
+.glowbc-calendar td.status-changeover2 {
+    cursor: pointer;
 }
 
 .glowbc-next-month,
