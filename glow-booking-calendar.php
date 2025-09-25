@@ -1017,7 +1017,7 @@ function glowbc_render_requests_page(){
     echo '<div class="wrap"><h1>Anfragen</h1>';
     echo '<table class="widefat fixed striped"><thead><tr>'
        . '<th>ID</th><th>Zeitraum</th><th>Name</th><th>E-Mail</th><th>Personen</th><th>Kinder 0-6</th><th>Kinder 7-16</th><th>Nachricht</th><th>Aktion</th>'
-       . '</tr></thead><tbody>';
+       . '</tr></thead><tbody>'; 
 
     foreach($rows as $r){
         $f = json_decode($r['fields'] ?? '{}', true) ?: [];
