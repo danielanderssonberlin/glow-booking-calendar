@@ -847,7 +847,7 @@ function glowbc_render_requests_page(){
             const $tr = jQuery(this).closest('tr');
             const id = $tr.data('row-id');
 
-            jQuery.post(ajaxUrl, {
+            jQuery.post(admin_url('admin-ajax.php'), {
                 action: 'glowbc_req_delete',
                 nonce:'<?php echo esc_js(wp_create_nonce('glowbc-nonce')); ?>',
                 id: id
