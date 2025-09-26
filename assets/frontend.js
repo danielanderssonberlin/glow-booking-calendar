@@ -35,7 +35,6 @@ jQuery(function($){
     else { date.setMonth(date.getMonth() + 1); }
 
     var monthStr = date.toISOString().slice(0,7);
-
     var $container = $('.glowbc-frontend-calendar[data-calendar-id="'+calendarId+'"]');
     $.post(GlowBC.ajaxUrl, {
       action: 'glowbc_get_calendar',
@@ -48,6 +47,38 @@ jQuery(function($){
       } else {
         $container.html('<p>Kalender konnte nicht geladen werden.</p>');
       }
+    });
+  });
+
+  // AJAX submit für das Anfrageformular
+  $(document).on('submit', '#glowbc-request-form', function(e){
+    e.preventDefault();
+    var $form = $(this);
+    var $status = $form.find('.glowbc-request-status');
+    var $btn = $form.find('button[type="submit"]');
+    $status.text('Sende Anfrage...');
+    $btn.prop('disabled', true);
+
+    // Validierung: Zeitraum gewählt?
+    var start = $form.find('input[name="start_date"]').val();
+    var end   = $form.find('input[name="end_date"]').val();
+    if(!start || !end){
+      $status.text('Bitte Zeitraum im Kalender wählen.');
+      $btn.prop('disabled', false);
+      return;
+    }
+
+    $.post(GlowBC.ajaxUrl, $form.serialize(), function(res){
+      if(res && res.success){
+        $status.text(res.data && res.data.message ? res.data.message : 'Anfrage gespeichert.');
+      } else {
+        var msg = (res && res.data && res.data.message) ? res.data.message : 'Fehler beim Senden der Anfrage.';
+        $status.text(msg);
+      }
+    }).fail(function(){
+      $status.text('Netzwerkfehler. Bitte später erneut versuchen.');
+    }).always(function(){
+      $btn.prop('disabled', false);
     });
   });
 });

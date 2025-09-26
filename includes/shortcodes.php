@@ -32,8 +32,6 @@ add_shortcode('glowbc_request_form', function($atts){
             <input type="hidden" name="start_date" id="glowbc-start-date" />
             <input type="hidden" name="end_date" id="glowbc-end-date" />
 
-            <div style="grid-column:1 / -1;">Bitte wählen Sie im Kalender einen Zeitraum (Start- und Enddatum) aus.</div>
-
             <label class="full">Vorname*<br><input type="text" name="first_name" required></label>
             <label class="full">Nachname*<br><input type="text" name="last_name" required></label>
             <label class="full">E-Mail*<br><input type="email" name="email" required></label>

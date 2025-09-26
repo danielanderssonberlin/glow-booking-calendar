@@ -108,12 +108,13 @@ if (!function_exists('glowbc_render_calendar_html')) {
         $html .= glowbc_render_month_table_frontend($calendar_id, $month1);
         $html .= glowbc_render_month_table_frontend($calendar_id, $month2);
         $html .= '</div>';
+        $html .= '<span>Bitte wählen Sie im Kalender einen Zeitraum (Start- und Enddatum) aus.';
 
         // Legend
         $html .= '<div class="glowbc-legend-frontend">';
         $html .= '<span><i class="legend-box status-gebucht"></i> gebucht</span>';
         $html .= '<span><i class="legend-box status-frei"></i> frei</span>';
-        $html .= '<span style="font-size:11px;color:#666;">Hinweis: changeover-Tage sind anklickbar (buchbar).</span>';
+        $html .= '<span><i class="legend-box status-changeover"></i> Wechsel</span>';
         $html .= '</div>';
 
         return $html;
