@@ -129,4 +129,36 @@ function glowbc_ajax_accept_request(){
     wp_send_json_success(['message'=>'Anfrage akzeptiert und im Kalender eingetragen.']);
 }
 add_action('wp_ajax_glowbc_accept_request', 'glowbc_ajax_accept_request');
+
+function glowbc_ajax_delete_request(){
+    check_ajax_referer('glowbc-nonce', 'nonce');
+    if(!current_user_can('manage_options')){
+        wp_send_json_error(['message'=>'Unauthorized'], 403);
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix.'glow_bookings';
+    $id = intval($_POST['id'] ?? 0);
+    if(!$id){
+        wp_send_json_error(['message'=>'Ungültige Anfrage-ID']);
+    }
+
+    // Prüfen, ob der Eintrag existiert
+    $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d", $id), ARRAY_A);
+    if(!$row){
+        wp_send_json_error(['message'=>'Anfrage nicht gefunden']);
+    }
+
+    // Eintrag löschen
+    $deleted = $wpdb->delete($table, ['id'=>$id], ['%d']);
+
+    if($deleted !== false){
+        wp_send_json_success(['message'=>'Anfrage erfolgreich gelöscht.']);
+    } else {
+        wp_send_json_error(['message'=>'Fehler beim Löschen der Anfrage.']);
+    }
+}
+add_action('wp_ajax_glowbc_delete_request', 'glowbc_ajax_delete_request');
+
+
 ?>

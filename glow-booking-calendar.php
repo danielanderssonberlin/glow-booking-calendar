@@ -814,7 +814,11 @@ function glowbc_render_requests_page(){
            . '<td>'.$k06.'</td>'
            . '<td>'.$k716.'</td>'
            . '<td style="max-width:280px">'.$msg.'</td>'
-           . '<td><button class="button glowbc-req-accept" data-id="'.$id.'">Accept</button></td>'
+           . '<td>
+                <button class="button glowbc-req-accept" data-id="'.$id.'">Accept</button>
+                <button type="button" class="button button-secondary glowbc-req-delete">Delete</button>
+             </td>
+           '
            . '</tr>';
     }
     if(empty($rows)){
@@ -836,6 +840,25 @@ function glowbc_render_requests_page(){
                 }
             });
         });
+
+        $(document).on('click', '.glowbc-req-delete', function () {
+            if (!confirm('Eintrag wirklich löschen?')) return;
+
+            const $tr = jQuery(this).closest('tr');
+            const id = $tr.data('row-id');
+
+            jQuery.post(GlowBC.ajaxUrl, {
+                action: 'glowbc_req_delete',
+                nonce: GlowBC.nonce,
+                id: id
+            }, function (resp) {
+                if (resp.success) {
+                    $tr.fadeOut(300, function () { jQuery(this).remove(); });
+                } else {
+                    alert(resp.data?.message || 'Fehler beim Löschen');
+                }
+            });
+        
     })(jQuery);
     </script>
     <?php
