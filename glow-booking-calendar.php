@@ -858,6 +858,7 @@ function glowbc_render_requests_page(){
                     alert(resp.data?.message || 'Fehler beim Löschen');
                 }
             });
+        });
         
     })(jQuery);
     </script>
