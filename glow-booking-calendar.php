@@ -27,8 +27,6 @@ class GlowBookingCalendar {
         // CSV Import/Export
         add_action('admin_init', [$this, 'maybe_handle_export_import']);
         add_action('wp_ajax_glowbc_bulk_save', [$this, 'ajax_bulk_save']);
-        add_action('wp_ajax_nopriv_glowbc_get_calendar', [$this, 'ajax_get_calendar']);
-        add_action('wp_ajax_glowbc_get_calendar', [$this, 'ajax_get_calendar']);
 
         
 
@@ -118,35 +116,7 @@ class GlowBookingCalendar {
 
 
 
-    public function ajax_get_calendar() {
-        $calendar_id = intval($_POST['calendar_id'] ?? 1);
-        
-        $month = sanitize_text_field($_POST['month'] ?? date('Y-m'));
 
-        // 2 Monate laden
-        $start = DateTime::createFromFormat('Y-m', $month);
-        if(!$start) $start = new DateTime('first day of this month');
-
-        $month1 = $start->format('Y-m');
-        $month2 = (clone $start)->modify('+1 month')->format('Y-m');
-
-        $months = [$month1, $month2];
-
-        $html = '<div class="glowbc-calendar-wrapper">';
-        foreach($months as $m){
-            $html .= $this->render_month_table($calendar_id, $m, false); // false = readonly
-        }
-        
-
-        $html .= '</div>';
-
-        $html .= '<div class="glowbc-legend-frontend">';
-        $html .= '<span><i class="legend-box status-gebucht"></i> gebucht</span>';
-        $html .= '<span><i class="legend-box status-frei"></i> frei</span>';
-        $html .= '</div>';
-
-        wp_send_json_success(['html' => $html]);
-    }
 
 
     public function render_month_table($calendar_id, $month, $readonly = false) {

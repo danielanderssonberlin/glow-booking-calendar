@@ -2,7 +2,8 @@ jQuery(function($){
   $('.glowbc-frontend-calendar').each(function(){
     var $wrap = $(this);
     var id = $wrap.data('calendar-id');
-    var month = new Date().toISOString().slice(0,7);
+    var now = new Date();
+    var month = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
 
     $.post(GlowBC.ajaxUrl, {
       action: 'glowbc_get_calendar',
@@ -22,19 +23,20 @@ jQuery(function($){
   $(document).on('click', '.glowbc-prev-month, .glowbc-next-month', function(){
     var $btn = $(this);
     var calendarId = $btn.data('calendar-id');
-    var $wrapper = $('.glowbc-frontend-calendar[data-calendar-id="'+calendarId+'"] .glowbc-calendar-wrapper');
-    var currentMonth = $wrapper.find('table:first thead th:eq(1)').text(); // mittlerer th = Monatsname
-console.log(currentMonth);
-    var date = new Date(currentMonth + ' 01');
+    // Nutze data-month statt Text-Parsen
+    var cur = $btn.attr('data-month'); // YYYY-MM
+    if(!cur){ cur = $btn.closest('table').attr('data-month'); }
+    if(!cur){ return; }
+    var parts = cur.split('-');
+    var y = parseInt(parts[0],10), m = parseInt(parts[1],10) - 1;
+    var date = new Date(y, m, 1);
 
-    if($btn.hasClass('glowbc-prev-month')){
-      date.setMonth(date.getMonth() - 1);
-    } else {
-      date.setMonth(date.getMonth() + 1);
-    }
+    if($btn.hasClass('glowbc-prev-month')){ date.setMonth(date.getMonth() - 1); }
+    else { date.setMonth(date.getMonth() + 1); }
 
     var monthStr = date.toISOString().slice(0,7);
 
+    var $container = $('.glowbc-frontend-calendar[data-calendar-id="'+calendarId+'"]');
     $.post(GlowBC.ajaxUrl, {
       action: 'glowbc_get_calendar',
       nonce: GlowBC.nonce,
@@ -42,7 +44,9 @@ console.log(currentMonth);
       month: monthStr
     }, function(res){
       if(res.success){
-        $wrapper.html(res.data.html);
+        $container.html(res.data.html);
+      } else {
+        $container.html('<p>Kalender konnte nicht geladen werden.</p>');
       }
     });
   });

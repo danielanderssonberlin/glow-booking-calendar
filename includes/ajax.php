@@ -1,11 +1,12 @@
 <?php
+require_once __DIR__.'/render.php';
 
 // ===== AJAX: Create Request (Public) =====
 function glowbc_ajax_create_request(){
     check_ajax_referer('glowbc-nonce', 'nonce');
 
     global $wpdb; $table = $wpdb->prefix.'glow_bookings';
-    $calendar_id = 1;
+    $calendar_id = intval($_POST['calendar_id'] ?? 1);
 
     $start_raw = sanitize_text_field($_POST['start_date'] ?? '');
     $end_raw   = sanitize_text_field($_POST['end_date'] ?? '');
@@ -44,13 +45,13 @@ function glowbc_ajax_create_request(){
         'description' => '',
     ];
 
-    // Optional: simple conflict check for already booked overlap
+    // Simple conflict check: only count accepted bookings with availability "gebucht"
     $conflict = $wpdb->get_var($wpdb->prepare(
         "SELECT COUNT(*) FROM {$table} WHERE calendar_id=%d AND status='accepted' AND fields LIKE %s AND NOT (end_date < %s OR start_date > %s)",
         $calendar_id, '%"availability":"gebucht"%', $start, $end
     ));
     if(intval($conflict) > 0){
-        wp_send_json_error(['message' => 'Der gewählte Zeitraum ist bereits (teilweise) belegt.']);
+        wp_send_json_error(['message' => 'Der gewÃ¤hlte Zeitraum ist bereits (teilweise) belegt.']);
     }
 
     $wpdb->insert($table, [
@@ -68,6 +69,16 @@ function glowbc_ajax_create_request(){
 add_action('wp_ajax_nopriv_glowbc_create_request', 'glowbc_ajax_create_request');
 add_action('wp_ajax_glowbc_create_request', 'glowbc_ajax_create_request');
 
+// ===== AJAX: Get Calendar (Frontend) =====
+function glowbc_ajax_get_calendar(){
+    check_ajax_referer('glowbc-nonce', 'nonce');
+    $calendar_id = intval($_POST['calendar_id'] ?? 1);
+    $month = sanitize_text_field($_POST['month'] ?? date('Y-m'));
+    $html = glowbc_render_calendar_html($calendar_id, $month);
+    wp_send_json_success(['html'=>$html]);
+}
+add_action('wp_ajax_nopriv_glowbc_get_calendar', 'glowbc_ajax_get_calendar');
+add_action('wp_ajax_glowbc_get_calendar', 'glowbc_ajax_get_calendar');
 
 // ===== AJAX: Accept Request (Admin) =====
 function glowbc_ajax_accept_request(){
@@ -81,7 +92,7 @@ function glowbc_ajax_accept_request(){
     $row = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id=%d", $id), ARRAY_A);
     if(!$row){ wp_send_json_error(['message'=>'Anfrage nicht gefunden']); }
 
-    $calendar_id = 1;
+    $calendar_id = intval($row['calendar_id'] ?? 1);
     $start = new DateTimeImmutable(substr($row['start_date'],0,10));
     $end   = new DateTimeImmutable(substr($row['end_date'],0,10));
     $fields = json_decode($row['fields'] ?? '{}', true) ?: [];
@@ -90,7 +101,6 @@ function glowbc_ajax_accept_request(){
     // Create bookings for each day
     for($d=$start; $d <= $end; $d = $d->modify('+1 day')){
         $ymd = $d->format('Y-m-d');
-        // upsert day directly
         $start_dt = $ymd.' 00:00:00';
         $end_dt   = $ymd.' 23:59:59';
         $existing = $wpdb->get_var($wpdb->prepare(
