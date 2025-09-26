@@ -792,7 +792,7 @@ function glowbc_render_requests_page(){
 
     echo '<div class="wrap"><h1>Anfragen</h1>';
     echo '<table class="widefat fixed striped"><thead><tr>'
-       . '<th>ID</th><th>Zeitraum</th><th>Name</th><th>E-Mail</th><th>Personen</th><th>Kinder 0-6</th><th>Kinder 7-16</th><th>Nachricht</th><th>Aktion</th>'
+       . '<th>Zeitraum</th><th>Name</th><th>E-Mail</th><th>Personen</th><th>Kinder 0-6</th><th>Kinder 7-16</th><th>Nachricht</th><th>Aktion</th>'
        . '</tr></thead><tbody>'; 
 
     foreach($rows as $r){
@@ -806,7 +806,6 @@ function glowbc_render_requests_page(){
         $k716 = intval($f['kids_7_16'] ?? 0);
         $msg = esc_html($f['message'] ?? '');
         echo '<tr data-id="'.$id.'">'
-           . '<td>'.$id.'</td>'
            . '<td>'.$period.'</td>'
            . '<td>'.$name.'</td>'
            . '<td>'.$email.'</td>'
@@ -815,9 +814,14 @@ function glowbc_render_requests_page(){
            . '<td>'.$k716.'</td>'
            . '<td style="max-width:280px">'.$msg.'</td>'
            . '<td>
-                <button class="button glowbc-req-accept" data-id="'.$id.'">Accept</button>
-                <button type="button" class="button button-secondary glowbc-req-delete">Delete</button>
-             </td>
+                <button class="button glowbc-req-accept" data-id="<?php echo $id; ?>">
+                    <i class="fas fa-check"></i>
+                </button>
+                <button type="button" class="button button-secondary glowbc-req-delete" data-id="<?php echo $id; ?>">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>
+
            '
            . '</tr>';
     }
@@ -845,17 +849,16 @@ function glowbc_render_requests_page(){
             if (!confirm('Eintrag wirklich löschen?')) return;
 
             const $tr = jQuery(this).closest('tr');
-            const id = $tr.data('row-id');
+            const id = $tr.data('id');
+            console.log('ID:', id);
 
-            jQuery.post(admin_url('admin-ajax.php'), {
-                action: 'glowbc_req_delete',
-                nonce:'<?php echo esc_js(wp_create_nonce('glowbc-nonce')); ?>',
-                id: id
-            }, function (resp) {
-                if (resp.success) {
-                    $tr.fadeOut(300, function () { jQuery(this).remove(); });
+            var $btn = $(this); $btn.prop('disabled', true).text('Verarbeite …');
+            $.post(ajaxurl, {action:'glowbc_delete_request', nonce:'<?php echo esc_js(wp_create_nonce('glowbc-nonce')); ?>', id:id}, function(res){
+                if(res && res.success){
+                    $btn.closest('tr').fadeOut(200, function(){ $(this).remove(); });
                 } else {
-                    alert(resp.data?.message || 'Fehler beim Löschen');
+                    alert((res && res.data && res.data.message) ? res.data.message : 'Fehler');
+                    $btn.prop('disabled', false).text('Delete');
                 }
             });
         });

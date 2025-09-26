@@ -131,6 +131,8 @@ function glowbc_ajax_accept_request(){
 add_action('wp_ajax_glowbc_accept_request', 'glowbc_ajax_accept_request');
 
 function glowbc_ajax_delete_request(){
+    error_log('Delete Request AJAX gestartet: '.print_r($_POST, true));
+
     check_ajax_referer('glowbc-nonce', 'nonce');
     if(!current_user_can('manage_options')){
         wp_send_json_error(['message'=>'Unauthorized'], 403);
