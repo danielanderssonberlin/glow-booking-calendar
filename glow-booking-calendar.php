@@ -843,7 +843,7 @@ class GlowBookingCalendar {
 
             $ymd = $this->parse_import_date_to_ymd($dateStr);
             $availability = $this->availability_for_import($legend);
-
+ 
             if (!$ymd || !$availability) { $skipped++; continue; }
 
             $this->upsert_day($calendar_id, $ymd, $availability, $desc);
