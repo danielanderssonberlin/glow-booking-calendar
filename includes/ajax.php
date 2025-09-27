@@ -127,7 +127,15 @@ function glowbc_ajax_accept_request(){
         ));
         $isStart = ($ymd === $start->format('Y-m-d'));
         $isEnd   = ($ymd === $end->format('Y-m-d'));
-        $availability = $isStart ? 'changeover1' : ($isEnd ? 'changeover2' : 'gebucht');
+        if ($isStart && $isEnd) {
+            $availability = 'gebucht';
+        } elseif ($isStart) {
+            $availability = 'changeover1';
+        } elseif ($isEnd) {
+            $availability = 'changeover2';
+        } else {
+            $availability = 'gebucht';
+        }
         $data = [
             'calendar_id' => $calendar_id,
             'form_id'     => null,
