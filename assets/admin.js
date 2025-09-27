@@ -121,4 +121,32 @@
   // Autosave
   $(document).on('change', '.glowbc-availability', function(){ saveRow($(this).closest('tr')); });
   $(document).on('input', '.glowbc-description', debounce(function(){ saveRow($(this).closest('tr')); }, 800));
+
+  // Kalender löschen
+  $(document).on('click', '.glowbc-delete-calendar', function(e){
+    e.preventDefault();
+    const $btn = $(this);
+    const calendarId = $btn.data('id');
+    const calendarName = $btn.data('name');
+    if (!confirm('Sind Sie sicher, dass Sie den Kalender "' + calendarName + '" und alle zugehörigen Buchungen löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+      return;
+    }
+    $btn.prop('disabled', true).text('Lösche...');
+    $.post(GlowBC.ajaxUrl, {
+      action: 'glowbc_delete_calendar',
+      nonce: GlowBC.nonce,
+      calendar_id: calendarId
+    }).done(function(res){
+      if (res.success) {
+        alert(res.data.message);
+        location.reload();
+      } else {
+        alert(res.data.message);
+        $btn.prop('disabled', false).text('Löschen');
+      }
+    }).fail(function(){
+      alert('Netzwerkfehler');
+      $btn.prop('disabled', false).text('Löschen');
+    });
+  });
 })(jQuery);

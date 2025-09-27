@@ -28,6 +28,7 @@ class GlowBookingCalendar {
         // CSV Import/Export
         add_action('admin_init', [$this, 'maybe_handle_export_import']);
         add_action('wp_ajax_glowbc_bulk_save', [$this, 'ajax_bulk_save']);
+        add_action('wp_ajax_glowbc_delete_calendar', [$this, 'ajax_delete_calendar']);
 
         
 
@@ -392,14 +393,22 @@ class GlowBookingCalendar {
             }
 
             if ($calendars) {
-                echo '<ul>';
+                echo '<table class="wp-list-table widefat fixed striped">';
+                echo '<thead><tr><th>Name</th><th>Shortcode</th><th>Aktionen</th></tr></thead>';
+                echo '<tbody>';
                 foreach ($calendars as $cal) {
                     $link = admin_url('admin.php?page=glow-booking-calendar&cal=' . $cal['id']);
-                    echo '<li><a href="'.esc_url($link).'">'.esc_html($cal['name']).'</a></li>';
+                    echo '<tr>';
+                    echo '<td><a href="'.esc_url($link).'">'.esc_html($cal['name']).'</a></td>';
+                    echo '<td><code>[glowbc_calendar id="' . esc_attr($cal['id']) . '"]</code></td>';
+                    echo '<td>';
+                    echo '<a href="'.esc_url($link).'" class="button button-small">Bearbeiten</a> ';
+                    echo '<button type="button" class="button button-small button-link-delete glowbc-delete-calendar" data-id="'.esc_attr($cal['id']).'" data-name="'.esc_attr($cal['name']).'">Löschen</button>';
+                    echo '</td>';
+                    echo '</tr>';
                 }
-                echo '</ul>';
+                echo '</tbody></table>';
             } else {
-                echo $calendar_id;
                 echo '<p>Es existiert noch kein Kalender.</p>';
             }
 
@@ -645,6 +654,41 @@ class GlowBookingCalendar {
         ));
 
         wp_send_json_success(['id' => intval($existing), 'message' => 'Gespeichert']);
+    }
+
+    public function ajax_delete_calendar() {
+        check_ajax_referer('glowbc-nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Unauthorized'], 403);
+        }
+
+        $calendar_id = intval($_POST['calendar_id'] ?? 0);
+        if (!$calendar_id) {
+            wp_send_json_error(['message' => 'Ungültige Kalender-ID']);
+        }
+
+        global $wpdb;
+        $table_calendars = $wpdb->prefix . 'glow_calendars';
+        $table_bookings = $this->table;
+
+        // Prüfen, ob Kalender existiert
+        $calendar = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_calendars WHERE id = %d", $calendar_id), ARRAY_A);
+        if (!$calendar) {
+            wp_send_json_error(['message' => 'Kalender nicht gefunden']);
+        }
+
+        // Zuerst alle Buchungen löschen
+        $wpdb->delete($table_bookings, ['calendar_id' => $calendar_id], ['%d']);
+
+        // Dann den Kalender löschen
+        $deleted = $wpdb->delete($table_calendars, ['id' => $calendar_id], ['%d']);
+
+        if ($deleted) {
+            wp_send_json_success(['message' => 'Kalender "' . esc_html($calendar['name']) . '" wurde gelöscht.']);
+        } else {
+            wp_send_json_error(['message' => 'Fehler beim Löschen des Kalenders']);
+        }
     }
 
     private function upsert_day($calendar_id, $dateYmd, $availability, $description) {
