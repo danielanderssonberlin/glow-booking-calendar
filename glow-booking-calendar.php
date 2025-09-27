@@ -44,6 +44,7 @@ class GlowBookingCalendar {
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             name VARCHAR(100) NOT NULL,
             slug VARCHAR(100) NOT NULL,
+            notification_email VARCHAR(100) NULL,
             PRIMARY KEY (id)
         ) $charset_collate;";
 
@@ -379,14 +380,16 @@ class GlowBookingCalendar {
             // Button zum neuen Kalender anlegen
             echo '<form method="post" style="margin-bottom:20px;">';
             echo '<input type="text" name="glowbc_new_calendar_name" placeholder="Name des Kalenders" required />';
+            echo '<input type="email" name="glowbc_new_calendar_email" placeholder="Benachrichtigungs-E-Mail (optional)" />';
             echo '<button type="submit" class="button button-primary">Neuen Kalender anlegen</button>';
             echo '</form>';
 
             if (($_POST['glowbc_new_calendar_name'])) {
-                
+
                 $name = sanitize_text_field($_POST['glowbc_new_calendar_name']);
+                $email = sanitize_email($_POST['glowbc_new_calendar_email'] ?? '');
                 $slug = sanitize_title($name);
-                $wpdb->insert($table_calendars, ['name'=>$name,'slug'=>$slug]);
+                $wpdb->insert($table_calendars, ['name'=>$name,'slug'=>$slug,'notification_email'=>$email]);
                 echo '<div class="notice notice-success"><p>Kalender "'.esc_html($name).'" wurde angelegt.</p></div>';
                 echo '<script>location.href=location.href;</script>';
                 exit;
@@ -394,15 +397,16 @@ class GlowBookingCalendar {
 
             if ($calendars) {
                 echo '<table class="wp-list-table widefat fixed striped">';
-                echo '<thead><tr><th>Name</th><th>Shortcode</th><th>Aktionen</th></tr></thead>';
+                echo '<thead><tr><th>Name</th><th>E-Mail für Benachrichtigungen</th><th>Shortcode</th><th>Aktionen</th></tr></thead>';
                 echo '<tbody>';
                 foreach ($calendars as $cal) {
                     $link = admin_url('admin.php?page=glow-booking-calendar&cal=' . $cal['id']);
                     echo '<tr>';
                     echo '<td><a href="'.esc_url($link).'">'.esc_html($cal['name']).'</a></td>';
+                    echo '<td>'.esc_html($cal['notification_email'] ?? '').'</td>';
                     echo '<td><code>[glowbc_calendar id="' . esc_attr($cal['id']) . '"]</code></td>';
                     echo '<td>';
-                    echo '<a href="'.esc_url($link).'" class="button button-small">Bearbeiten</a> ';
+                    echo '<a href="'.esc_url($link).'&edit=1" class="button button-small">Bearbeiten</a> ';
                     echo '<button type="button" class="button button-small button-link-delete glowbc-delete-calendar" data-id="'.esc_attr($cal['id']).'" data-name="'.esc_attr($cal['name']).'">Löschen</button>';
                     echo '</td>';
                     echo '</tr>';
@@ -422,6 +426,33 @@ class GlowBookingCalendar {
         $calendar = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_calendars WHERE id=%d", $calendar_id), ARRAY_A);
         if (!$calendar) {
             echo '<div class="notice notice-error"><p>Kalender nicht gefunden.</p></div>';
+            return;
+        }
+
+        // Bearbeitungsmodus für Kalender
+        if (isset($_GET['edit'])) {
+            echo '<div class="wrap"><h1>Kalender bearbeiten</h1>';
+            $overview_link = admin_url('admin.php?page=glow-booking-calendar');
+            echo '<p><a href="'.esc_url($overview_link).'" class="button">&larr; Zurück zur Übersicht</a></p>';
+
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['glowbc_edit_calendar'])) {
+                $name = sanitize_text_field($_POST['glowbc_edit_name']);
+                $email = sanitize_email($_POST['glowbc_edit_email'] ?? '');
+                $wpdb->update($table_calendars, ['name'=>$name, 'notification_email'=>$email], ['id'=>$calendar_id]);
+                echo '<div class="notice notice-success"><p>Kalender aktualisiert.</p></div>';
+                // Redirect zurück zur Detailansicht
+                wp_redirect(admin_url('admin.php?page=glow-booking-calendar&cal=' . $calendar_id));
+                exit;
+            }
+
+            echo '<form method="post">';
+            echo '<table class="form-table">';
+            echo '<tr><th><label for="glowbc_edit_name">Name</label></th><td><input type="text" id="glowbc_edit_name" name="glowbc_edit_name" value="'.esc_attr($calendar['name']).'" required /></td></tr>';
+            echo '<tr><th><label for="glowbc_edit_email">Benachrichtigungs-E-Mail</label></th><td><input type="email" id="glowbc_edit_email" name="glowbc_edit_email" value="'.esc_attr($calendar['notification_email'] ?? '').'" /></td></tr>';
+            echo '</table>';
+            echo '<input type="hidden" name="glowbc_edit_calendar" value="1" />';
+            echo '<button type="submit" class="button button-primary">Speichern</button>';
+            echo '</form></div>';
             return;
         }
 
@@ -455,6 +486,39 @@ class GlowBookingCalendar {
 
         $overview_link = admin_url('admin.php?page=glow-booking-calendar');
         echo '<p><a href="'.esc_url($overview_link).'" class="button">&larr; Zurück zur Übersicht</a></p>';
+
+        // Neue Anfragen anzeigen
+        $pending_requests = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->table} WHERE calendar_id = %d AND status = 'pending' ORDER BY _date_created DESC",
+            $calendar_id
+        ), ARRAY_A);
+
+        if ($pending_requests) {
+            echo '<div class="notice notice-info" style="margin-top:20px;"><h3>Neue Anfragen ('.count($pending_requests).')</h3>';
+            echo '<table class="widefat striped" style="margin-top:10px;">';
+            echo '<thead><tr><th>Name</th><th>E-Mail</th><th>Zeitraum</th><th>Personen</th><th>Nachricht</th><th>Aktionen</th></tr></thead><tbody>';
+            foreach ($pending_requests as $req) {
+                $fields = json_decode($req['fields'], true) ?: [];
+                $name = esc_html(($fields['first_name'] ?? '') . ' ' . ($fields['last_name'] ?? ''));
+                $email = esc_html($fields['email'] ?? '');
+                $start = date_i18n('d.m.Y', strtotime($req['start_date']));
+                $end = date_i18n('d.m.Y', strtotime($req['end_date']));
+                $persons = intval($fields['persons'] ?? 0);
+                $message = esc_html($fields['message'] ?? '');
+                echo '<tr>';
+                echo '<td>'.$name.'</td>';
+                echo '<td><a href="mailto:'.$email.'">'.$email.'</a></td>';
+                echo '<td>'.$start.' – '.$end.'</td>';
+                echo '<td>'.$persons.'</td>';
+                echo '<td>'.wp_trim_words($message, 10).'</td>';
+                echo '<td>';
+                echo '<button class="button button-small glowbc-accept-request" data-id="'.esc_attr($req['id']).'">Annehmen</button> ';
+                echo '<button class="button button-small button-link-delete glowbc-delete-request" data-id="'.esc_attr($req['id']).'">Ablehnen</button>';
+                echo '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table></div>';
+        }
 
         // Admin Notice nach Import
         if (!empty($_GET['glowbc_imported'])) {
@@ -907,17 +971,18 @@ new GlowBookingCalendar();
 // ===== Admin Submenu: Requests =====
 function glowbc_render_requests_page(){
     if(!current_user_can('manage_options')){ wp_die('Unauthorized'); }
-    global $wpdb; $table = $wpdb->prefix.'glow_bookings';
-    $rows = $wpdb->get_results("SELECT * FROM {$table} WHERE status='pending' ORDER BY start_date ASC", ARRAY_A);
+    global $wpdb; $table = $wpdb->prefix.'glow_bookings'; $cal_table = $wpdb->prefix.'glow_calendars';
+    $rows = $wpdb->get_results("SELECT b.*, c.name as calendar_name FROM {$table} b LEFT JOIN {$cal_table} c ON b.calendar_id = c.id WHERE b.status='pending' ORDER BY b.start_date ASC", ARRAY_A);
 
     echo '<div class="wrap"><h1>Anfragen</h1>';
     echo '<table class="widefat fixed striped"><thead><tr>'
-       . '<th>Zeitraum</th><th>Name</th><th>E-Mail</th><th>Personen</th><th>Kinder 0-6</th><th>Kinder 7-16</th><th>Nachricht</th><th>Aktion</th>'
-       . '</tr></thead><tbody>'; 
+       . '<th>Kalender</th><th>Zeitraum</th><th>Name</th><th>E-Mail</th><th>Personen</th><th>Kinder 0-6</th><th>Kinder 7-16</th><th>Nachricht</th><th>Aktion</th>'
+       . '</tr></thead><tbody>';
 
     foreach($rows as $r){
         $f = json_decode($r['fields'] ?? '{}', true) ?: [];
         $id = intval($r['id']);
+        $calendar_name = esc_html($r['calendar_name'] ?? 'Unbekannt');
         $period = esc_html(date_i18n('d.m.Y', strtotime($r['start_date'])) . ' – ' . date_i18n('d.m.Y', strtotime($r['end_date'])));
         $name = esc_html(($f['first_name'] ?? '').' '.($f['last_name'] ?? ''));
         $email = esc_html(($f['email'] ?? ''));
@@ -926,6 +991,7 @@ function glowbc_render_requests_page(){
         $k716 = intval($f['kids_7_16'] ?? 0);
         $msg = esc_html($f['message'] ?? '');
         echo '<tr data-id="'.$id.'">'
+           . '<td>'.$calendar_name.'</td>'
            . '<td>'.$period.'</td>'
            . '<td>'.$name.'</td>'
            . '<td>'.$email.'</td>'
@@ -934,10 +1000,10 @@ function glowbc_render_requests_page(){
            . '<td>'.$k716.'</td>'
            . '<td style="max-width:280px">'.$msg.'</td>'
            . '<td>
-                <button class="button glowbc-req-accept" data-id="<?php echo $id; ?>">
+                <button class="button glowbc-req-accept" data-id="'.$id.'">
                     <i class="fas fa-check"></i>
                 </button>
-                <button type="button" class="button button-secondary glowbc-req-delete" data-id="<?php echo $id; ?>">
+                <button type="button" class="button button-secondary glowbc-req-delete" data-id="'.$id.'">
                     <i class="fas fa-times"></i>
                 </button>
             </td>
@@ -946,7 +1012,7 @@ function glowbc_render_requests_page(){
            . '</tr>';
     }
     if(empty($rows)){
-        echo '<tr><td colspan="9">Keine Anfragen</td></tr>';
+        echo '<tr><td colspan="10">Keine Anfragen</td></tr>';
     }
     echo '</tbody></table>';
     ?>

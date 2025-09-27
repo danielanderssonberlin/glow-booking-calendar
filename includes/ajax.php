@@ -64,7 +64,25 @@ function glowbc_ajax_create_request(){
         'is_read'     => 0,
     ]);
 
-    wp_send_json_success(['message' => 'Anfrage gespeichert']);
+    // E-Mail-Benachrichtigung senden
+    $cal_table = $wpdb->prefix . 'glow_calendars';
+    $calendar = $wpdb->get_row($wpdb->prepare("SELECT name, notification_email FROM $cal_table WHERE id = %d", $calendar_id), ARRAY_A);
+    if ($calendar && !empty($calendar['notification_email'])) {
+        $subject = 'Neue Buchungsanfrage für ' . $calendar['name'];
+        $message = "Neue Anfrage erhalten:\n\n";
+        $message .= "Name: " . $fields['first_name'] . ' ' . $fields['last_name'] . "\n";
+        $message .= "E-Mail: " . $fields['email'] . "\n";
+        $message .= "Zeitraum: " . date('d.m.Y', strtotime($start)) . ' - ' . date('d.m.Y', strtotime($end)) . "\n";
+        $message .= "Personen: " . $fields['persons'] . "\n";
+        if ($fields['kids_0_6'] > 0) $message .= "Kinder 0-6: " . $fields['kids_0_6'] . "\n";
+        if ($fields['kids_7_16'] > 0) $message .= "Kinder 7-16: " . $fields['kids_7_16'] . "\n";
+        if (!empty($fields['message'])) $message .= "Nachricht: " . $fields['message'] . "\n";
+        $message .= "\nBitte im Admin-Bereich überprüfen: " . admin_url('admin.php?page=glow-booking-calendar&cal=' . $calendar_id);
+
+        wp_mail($calendar['notification_email'], $subject, $message);
+    }
+
+    wp_send_json_success(['message' => 'Anfrage gesendet']);
 }
 add_action('wp_ajax_nopriv_glowbc_create_request', 'glowbc_ajax_create_request');
 add_action('wp_ajax_glowbc_create_request', 'glowbc_ajax_create_request');

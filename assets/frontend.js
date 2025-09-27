@@ -70,7 +70,7 @@ jQuery(function($){
 
     $.post(GlowBC.ajaxUrl, $form.serialize(), function(res){
       if(res && res.success){
-        $status.text(res.data && res.data.message ? res.data.message : 'Anfrage gespeichert.');
+        $status.text(res.data && res.data.message ? res.data.message : 'Anfrage gesendet.');
       } else {
         var msg = (res && res.data && res.data.message) ? res.data.message : 'Fehler beim Senden der Anfrage.';
         $status.text(msg);
