@@ -122,6 +122,39 @@
   $(document).on('change', '.glowbc-availability', function(){ saveRow($(this).closest('tr')); });
   $(document).on('input', '.glowbc-description', debounce(function(){ saveRow($(this).closest('tr')); }, 800));
 
+  // Admin Calendar Navigation
+  function loadAdminCalendar(year, month) {
+    const $cal = $('.glowbc-calendar').first();
+    const calendarId = $cal.data('calendar-id');
+    $.post(GlowBC.ajaxUrl, {
+      action: 'glowbc_get_admin_calendar',
+      nonce: GlowBC.nonce,
+      calendar_id: calendarId,
+      y: year,
+      m: month
+    }).done(function(res){
+      if (res.success) {
+        $cal.replaceWith(res.data.html);
+      } else {
+        alert(res.data.message);
+      }
+    }).fail(function(){
+      alert('Netzwerkfehler');
+    });
+  }
+
+  $(document).on('click', '.glowbc-nav', function(){
+    const year = $(this).data('year');
+    const month = $(this).data('month');
+    loadAdminCalendar(year, month);
+  });
+
+  $(document).on('change', '.glowbc-month-select', function(){
+    const ym = $(this).val();
+    const [year, month] = ym.split('-').map(Number);
+    loadAdminCalendar(year, month);
+  });
+
   // Kalender löschen
   $(document).on('click', '.glowbc-delete-calendar', function(e){
     e.preventDefault();

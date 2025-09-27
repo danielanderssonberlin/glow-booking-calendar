@@ -544,13 +544,12 @@ class GlowBookingCalendar {
             'page' => 'glow-booking-calendar',
             'cal' => $calendar_id,
             'y' => $year,
-            'm' => $month,
             'glowbc_export' => 1,
         ], admin_url('admin.php'));
         $export_url = wp_nonce_url($export_url, 'glowbc_export', 'glowbc_export_nonce');
 
         echo '<div style="margin:8px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">'
-            . '<a href="'.esc_url($export_url).'" class="button button-secondary">Monat als CSV exportieren</a>'
+            . '<a href="'.esc_url($export_url).'" class="button button-secondary">Jahr als CSV exportieren</a>'
             // Import-Formular
             . '<form method="post" enctype="multipart/form-data" style="display:inline-flex; gap:8px; align-items:center;">'
             . wp_nonce_field('glowbc_import', 'glowbc_import_nonce', true, false)
@@ -569,12 +568,22 @@ class GlowBookingCalendar {
         echo '<div class="glowbc-layout">';
 
         // Linke Spalte: Kalender
-        echo '<div class="glowbc-calendar">';
-        echo '<div class="glowbc-cal-header"'
-            . '><a class="glowbc-nav prev" href="'.$prevUrl.'" aria-label="Voriger Monat">&#9664;</a>'
-            . '<div class="glowbc-month-label">'.esc_html($monthLabel).'</div>'
-            . '<a class="glowbc-nav next" href="'.$nextUrl.'" aria-label="Nächster Monat">&#9654;</a>'
-            . '</div>';
+        echo '<div class="glowbc-calendar" data-calendar-id="'.esc_attr($calendar_id).'">';
+        echo '<div class="glowbc-cal-header">';
+        echo '<button class="glowbc-nav prev" data-year="'.$prevYear.'" data-month="'.$prevMonth.'" aria-label="Voriger Monat">&#9664;</button>';
+        echo '<select class="glowbc-month-select">';
+        // Generate options for next 5 months
+        $current = new DateTimeImmutable("$year-$month-01");
+        for ($i = 0; $i < 5; $i++) {
+            $ym = $current->format('Y-m');
+            $label = $current->format('F Y');
+            $selected = ($i == 0) ? ' selected' : '';
+            echo '<option value="'.$ym.'"'.$selected.'>'.esc_html($label).'</option>';
+            $current = $current->modify('+1 month');
+        }
+        echo '</select>';
+        echo '<button class="glowbc-nav next" data-year="'.$nextYear.'" data-month="'.$nextMonth.'" aria-label="Nächster Monat">&#9654;</button>';
+        echo '</div>';
 
         // Wochentage (Mo-So)
         $weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -806,8 +815,7 @@ class GlowBookingCalendar {
             check_admin_referer('glowbc_export', 'glowbc_export_nonce');
             $calendar_id = isset($_GET['cal']) ? max(1, intval($_GET['cal'])) : intval(apply_filters('glowbc_calendar_id_default', 1));
             $year  = isset($_GET['y']) ? max(1970, intval($_GET['y'])) : intval(current_time('Y'));
-            $month = isset($_GET['m']) ? min(12, max(1, intval($_GET['m']))) : intval(current_time('m'));
-            $this->do_export_csv($calendar_id, $year, $month);
+            $this->do_export_csv($calendar_id, $year);
             exit;
         }
 
@@ -896,12 +904,17 @@ class GlowBookingCalendar {
         return '';
     }
 
-    private function do_export_csv($calendar_id, $year, $month) {
+    private function do_export_csv($calendar_id, $year) {
         if (!current_user_can('manage_options')) wp_die('Unauthorized');
 
-        $map = $this->get_month_rows_latest_per_day($calendar_id, $year, $month);
+        $map = [];
+        for ($month = 1; $month <= 12; $month++) {
+            $monthMap = $this->get_month_rows_latest_per_day($calendar_id, $year, $month);
+            $map = array_merge($map, $monthMap);
+        }
+        ksort($map); // Sortiere nach Datum
 
-        $filename = sprintf('glowbc-calendar-%d-%04d-%02d.csv', $calendar_id, $year, $month);
+        $filename = sprintf('glowbc-calendar-%d-%04d.csv', $calendar_id, $year);
         nocache_headers();
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="'.$filename.'"');

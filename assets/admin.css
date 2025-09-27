@@ -8,9 +8,10 @@
 
 /* Calendar */
 .glowbc-calendar { border: 1px solid #dcdcde; background: #fff; border-radius: 4px; }
-.glowbc-cal-header { display: grid; grid-template-columns: 32px 1fr 32px; align-items: center; padding: 8px 8px; border-bottom: 1px solid #eee; }
-.glowbc-month-label { text-align: center; font-weight: 600; }
-.glowbc-nav { text-decoration: none; font-size: 16px; color: #1d2327; display: inline-flex; justify-content: center; }
+.glowbc-cal-header { display: flex; align-items: center; padding: 8px 8px; border-bottom: 1px solid #eee; justify-content: space-between; }
+.glowbc-month-select { flex: 1; margin: 0 8px; }
+.glowbc-nav { font-size: 16px; color: #1d2327; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 4px; }
+.glowbc-nav:hover { background: #f0f0f1; }
 .glowbc-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
 .glowbc-weekdays { gap: 0; background: #f6f7f7; border-bottom: 1px solid #eee; }
 .glowbc-weekday { text-align: center; padding: 6px 4px; font-weight: 600; color: #50575e; }

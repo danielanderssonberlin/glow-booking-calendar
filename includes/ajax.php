@@ -98,6 +98,112 @@ function glowbc_ajax_get_calendar(){
 add_action('wp_ajax_nopriv_glowbc_get_calendar', 'glowbc_ajax_get_calendar');
 add_action('wp_ajax_glowbc_get_calendar', 'glowbc_ajax_get_calendar');
 
+// ===== AJAX: Get Admin Calendar =====
+function glowbc_ajax_get_admin_calendar(){
+    check_ajax_referer('glowbc-nonce', 'nonce');
+    if(!current_user_can('manage_options')){ wp_send_json_error(['message'=>'Unauthorized'], 403); }
+
+    $calendar_id = intval($_POST['calendar_id'] ?? 1);
+    $year = isset($_POST['y']) ? max(1970, intval($_POST['y'])) : intval(current_time('Y'));
+    $month = isset($_POST['m']) ? min(12, max(1, intval($_POST['m']))) : intval(current_time('m'));
+
+    // Render the calendar HTML similar to admin page
+    ob_start();
+    // Include the calendar rendering code from glow-booking-calendar.php
+    // But since it's a separate file, better to create a helper function
+    // For now, inline the rendering
+    global $wpdb;
+    $table = $wpdb->prefix.'glow_bookings';
+    $days = []; // get_month_days logic
+    $date = new DateTimeImmutable("$year-$month-01 00:00:00");
+    $days_in_month = (int)$date->format('t');
+    for ($d = 1; $d <= $days_in_month; $d++) {
+        $days[] = $date->setDate((int)$date->format('Y'), (int)$date->format('m'), $d);
+    }
+
+    $statusMap = []; // get_month_status_map logic
+    $map = []; // get_month_rows_latest_per_day
+    $first = sprintf('%04d-%02d-01 00:00:00', $year, $month);
+    $last = sprintf('%04d-%02d-%02d 23:59:59', $year, $month, $days_in_month);
+    $rows = $wpdb->get_results($wpdb->prepare(
+        "SELECT id, start_date, fields FROM {$table} WHERE calendar_id = %d AND start_date >= %s AND end_date <= %s ORDER BY id DESC",
+        $calendar_id, $first, $last
+    ), ARRAY_A);
+    foreach ($rows as $r) {
+        $dateKey = substr($r['start_date'], 0, 10);
+        if (!isset($map[$dateKey])) {
+            $fields = !empty($r['fields']) ? json_decode($r['fields'], true) : [];
+            $map[$dateKey] = $fields;
+        }
+    }
+    foreach ($map as $dateKey => $fields) {
+        $statusMap[$dateKey] = $fields['availability'] ?? '';
+    }
+
+    // Navigation
+    $prevMonth = $month - 1; $prevYear = $year; if ($prevMonth < 1) { $prevMonth = 12; $prevYear--; }
+    $nextMonth = $month + 1; $nextYear = $year; if ($nextMonth > 12) { $nextMonth = 1; $nextYear++; }
+    $monthLabel = date_i18n('F Y', strtotime(sprintf('%04d-%02d-01', $year, $month)));
+
+    echo '<div class="glowbc-calendar">';
+    echo '<div class="glowbc-cal-header">';
+    echo '<button class="glowbc-nav prev" data-year="'.$prevYear.'" data-month="'.$prevMonth.'" aria-label="Voriger Monat">&#9664;</button>';
+    echo '<div class="glowbc-month-label">'.esc_html($monthLabel).'</div>';
+    echo '<button class="glowbc-nav next" data-year="'.$nextYear.'" data-month="'.$nextMonth.'" aria-label="Nächster Monat">&#9654;</button>';
+    echo '</div>';
+
+    // Weekdays
+    $weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    echo '<div class="glowbc-grid glowbc-weekdays">';
+    foreach ($weekdays as $wd) { echo '<div class="glowbc-weekday">'.esc_html($wd).'</div>'; }
+    echo '</div>';
+
+    // Days
+    $firstDow = (int)(new DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month)))->format('N');
+    $totalDays = $days_in_month;
+    echo '<div class="glowbc-grid glowbc-days">';
+    for ($i=1; $i<$firstDow; $i++) { echo '<div class="glowbc-day empty"></div>'; }
+    for ($d=1; $d<=$totalDays; $d++) {
+        $dateKey = sprintf('%04d-%02d-%02d', $year, $month, $d);
+        $availability = $statusMap[$dateKey] ?? '';
+        $cls = 'glowbc-day';
+        if ($availability) { $cls .= ' status-' . esc_attr($availability); }
+        echo '<div class="'.$cls.'" data-date="'.$dateKey.'"><span class="num">'.$d.'</span></div>';
+        if (($d + $firstDow - 1) % 7 == 0) echo '</div><div class="glowbc-grid glowbc-days">';
+    }
+    echo '</div>';
+
+    echo '<div class="glowbc-legend">';
+    echo '<span><i class="legend-box status-gebucht"></i> gebucht</span>';
+    echo '<span><i class="legend-box status-changeover1"></i> changeover 1</span>';
+    echo '<span><i class="legend-box status-changeover2"></i> changeover 2</span>';
+    echo '</div>';
+
+    // Bulk edit
+    echo '<div class="glowbc-bulk-edit">';
+    echo '<h2>Bulk Edit Verfügbarkeit</h2>';
+    echo '<p style="margin-top:6px;color:#50575e;">Tipp: Start- und Enddatum kannst du auch direkt im Kalender auswählen.</p>';
+    echo '<form id="glowbc-bulk-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">';
+    echo '<input type="hidden" name="calendar_id" value="'.esc_attr($calendar_id).'" />';
+    echo '<label class="full">Startdatum<br><input type="date" name="start_date" required></label>';
+    echo '<label class="full">Enddatum<br><input type="date" name="end_date" required></label>';
+    echo '<label class="full">Verfügbarkeit<br><select name="availability" required>';
+    echo '<option value="">— bitte wählen —</option>';
+    echo '<option value="verfuegbar">verfügbar</option>';
+    echo '<option value="gebucht">gebucht</option>';
+    echo '</select></label>';
+    echo '<label class="full">Beschreibung<br><input type="text" name="description" placeholder="Beschreibung..."></label>';
+    echo '<button type="submit" class="button button-primary">Speichern</button>';
+    echo '<div class="glowbc-bulk-status" style="color:green;"></div>';
+    echo '</form></div>';
+
+    echo '</div>'; // glowbc-calendar
+
+    $html = ob_get_clean();
+    wp_send_json_success(['html'=>$html]);
+}
+add_action('wp_ajax_glowbc_get_admin_calendar', 'glowbc_ajax_get_admin_calendar');
+
 // ===== AJAX: Accept Request (Admin) =====
 function glowbc_ajax_accept_request(){
     check_ajax_referer('glowbc-nonce', 'nonce');
