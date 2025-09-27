@@ -512,8 +512,8 @@ class GlowBookingCalendar {
                 echo '<td>'.$persons.'</td>';
                 echo '<td>'.wp_trim_words($message, 10).'</td>';
                 echo '<td>';
-                echo '<button class="button button-small glowbc-accept-request" data-id="'.esc_attr($req['id']).'">Annehmen</button> ';
-                echo '<button class="button button-small button-link-delete glowbc-delete-request" data-id="'.esc_attr($req['id']).'">Ablehnen</button>';
+                echo '<button class="button button-small button-primary glowbc-accept-request" data-id="'.esc_attr($req['id']).'">Annehmen</button> ';
+                echo '<button class="button button-small button-secondary glowbc-delete-request" data-id="'.esc_attr($req['id']).'">Ablehnen</button>';
                 echo '</td>';
                 echo '</tr>';
             }

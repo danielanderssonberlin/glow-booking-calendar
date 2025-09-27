@@ -182,4 +182,55 @@
       $btn.prop('disabled', false).text('Löschen');
     });
   });
+
+  // Accept Request
+  $(document).on('click', '.glowbc-accept-request', function(e){
+    e.preventDefault();
+    const $btn = $(this);
+    const id = $btn.data('id');
+    $btn.prop('disabled', true).text('Annehmen...');
+    $.post(GlowBC.ajaxUrl, {
+      action: 'glowbc_accept_request',
+      nonce: GlowBC.nonce,
+      id: id
+    }).done(function(res){
+      if (res.success) {
+        alert(res.data.message);
+        location.reload();
+      } else {
+        alert(res.data.message);
+        $btn.prop('disabled', false).text('Annehmen');
+      }
+    }).fail(function(){
+      alert('Netzwerkfehler');
+      $btn.prop('disabled', false).text('Annehmen');
+    });
+  });
+
+  // Delete Request
+  $(document).on('click', '.glowbc-delete-request', function(e){
+    e.preventDefault();
+    const $btn = $(this);
+    const id = $btn.data('id');
+    if (!confirm('Sind Sie sicher, dass Sie diese Anfrage ablehnen möchten?')) {
+      return;
+    }
+    $btn.prop('disabled', true).text('Ablehnen...');
+    $.post(GlowBC.ajaxUrl, {
+      action: 'glowbc_delete_request',
+      nonce: GlowBC.nonce,
+      id: id
+    }).done(function(res){
+      if (res.success) {
+        alert(res.data.message);
+        location.reload();
+      } else {
+        alert(res.data.message);
+        $btn.prop('disabled', false).text('Ablehnen');
+      }
+    }).fail(function(){
+      alert('Netzwerkfehler');
+      $btn.prop('disabled', false).text('Ablehnen');
+    });
+  });
 })(jQuery);
