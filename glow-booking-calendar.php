@@ -17,6 +17,7 @@ class GlowBookingCalendar {
 
     public function __construct() {
         global $wpdb;
+
         $this->table = $wpdb->prefix . 'glow_bookings';
 
         register_activation_hook(__FILE__, [$this, 'activate']);
@@ -37,8 +38,16 @@ class GlowBookingCalendar {
         global $wpdb;
         $charset_collate = $wpdb->get_charset_collate();
 
-        // Tabellenstruktur gemäß Vorgabe
-        $sql = "CREATE TABLE {$this->table} (
+        $table_calendars = $wpdb->prefix . 'glow_calendars';
+        $sql1 = "CREATE TABLE $table_calendars (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(100) NOT NULL,
+            slug VARCHAR(100) NOT NULL,
+            PRIMARY KEY (id)
+        ) $charset_collate;";
+
+        $table_entries = $wpdb->prefix . 'glow_bookings';
+        $sql2 = "CREATE TABLE $table_entries (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             calendar_id BIGINT UNSIGNED NOT NULL,
             form_id BIGINT UNSIGNED NULL,
@@ -56,7 +65,8 @@ class GlowBookingCalendar {
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
+        dbDelta($sql1);
+        dbDelta($sql2);
     }
 
     public function admin_menu() {
@@ -358,6 +368,61 @@ class GlowBookingCalendar {
 
     // ===== UI =====
     public function render_admin_page() {
+
+        global $wpdb;
+        $table_calendars = $wpdb->prefix . 'glow_calendars';
+        $calendar_id = isset($_GET['cal']) ? intval($_GET['cal']) : 0;
+        if ($calendar_id <= 0) {
+            $calendars = $wpdb->get_results("SELECT * FROM $table_calendars ORDER BY id ASC", ARRAY_A);
+            echo '<div class="wrap"><h1>Buchungskalender Übersicht</h1>';
+            // Button zum neuen Kalender anlegen
+            echo '<form method="post" style="margin-bottom:20px;">';
+            echo '<input type="text" name="glowbc_new_calendar_name" placeholder="Name des Kalenders" required />';
+            echo '<button type="submit" class="button button-primary">Neuen Kalender anlegen</button>';
+            echo '</form>';
+
+            if (($_POST['glowbc_new_calendar_name'])) {
+                
+                $name = sanitize_text_field($_POST['glowbc_new_calendar_name']);
+                $slug = sanitize_title($name);
+                $wpdb->insert($table_calendars, ['name'=>$name,'slug'=>$slug]);
+                echo '<div class="notice notice-success"><p>Kalender "'.esc_html($name).'" wurde angelegt.</p></div>';
+                echo '<script>location.href=location.href;</script>';
+                exit;
+            }
+
+            if ($calendars) {
+                echo '<ul>';
+                foreach ($calendars as $cal) {
+                    $link = admin_url('admin.php?page=glow-booking-calendar&cal=' . $cal['id']);
+                    echo '<li><a href="'.esc_url($link).'">'.esc_html($cal['name']).'</a></li>';
+                }
+                echo '</ul>';
+            } else {
+                echo $calendar_id;
+                echo '<p>Es existiert noch kein Kalender.</p>';
+            }
+
+            echo '</div>';
+            return;
+        }
+
+        // ====================
+        // Detailseite eines Kalenders
+        // ====================
+        $calendar = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_calendars WHERE id=%d", $calendar_id), ARRAY_A);
+        if (!$calendar) {
+            echo '<div class="notice notice-error"><p>Kalender nicht gefunden.</p></div>';
+            return;
+        }
+
+        
+        // Prüfen, ob Kalender existieren
+
+        echo '<div class="wrap"><h1>Buchungskalender</h1>';
+        
+
+
         // Jahr/Monat via GET wählbar
         $year  = isset($_GET['y']) ? max(1970, intval($_GET['y'])) : intval(current_time('Y'));
         $month = isset($_GET['m']) ? min(12, max(1, intval($_GET['m']))) : intval(current_time('m'));
@@ -377,7 +442,10 @@ class GlowBookingCalendar {
         $nextUrl = esc_url(add_query_arg(['y' => $nextYear, 'm' => $nextMonth, 'cal' => $calendar_id], $baseUrl));
         $monthLabel = date_i18n('F Y', strtotime(sprintf('%04d-%02d-01', $year, $month)));
 
-        echo '<div class="wrap"><h1>Buchungskalender</h1>';
+        echo '<div class="wrap"><h2>'. $calendar['name'] .'</h2>';
+
+        $overview_link = admin_url('admin.php?page=glow-booking-calendar');
+        echo '<p><a href="'.esc_url($overview_link).'" class="button">&larr; Zurück zur Übersicht</a></p>';
 
         // Admin Notice nach Import
         if (!empty($_GET['glowbc_imported'])) {
@@ -539,6 +607,14 @@ class GlowBookingCalendar {
         echo '</div>'; // table-wrap
 
         echo '</div>'; // layout
+
+        // Shortcodes anzeigen
+        echo '<div style="margin-top:20px; padding:10px; background:#f9f9f9; border:1px solid #ddd;">';
+        echo '<h3>Shortcodes für diesen Kalender</h3>';
+        echo '<p>Kalender anzeigen: <code>[glowbc_calendar id="' . esc_attr($calendar_id) . '"]</code></p>';
+        echo '<p>Anfrageformular: <code>[glowbc_request_form id="' . esc_attr($calendar_id) . '"]</code></p>';
+        echo '</div>';
+
         echo '</div>'; // wrap
     }
 
