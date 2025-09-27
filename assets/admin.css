@@ -50,13 +50,15 @@ label.full select {
 .glowbc-day.status-gebucht { background: #ffebee; }
 .glowbc-day.status-gebucht::after { content: ""; position: absolute; inset: 0; background: rgba(198, 40, 40, 0.7); }
 
-/* changeover1 = diagonal halb grün zu rot */
-.glowbc-day.status-changeover1 { background: linear-gradient(135deg, #d4edda 0 50%, #f8d7da 50% 100%); }
+/* changeover1 = diagonal halb rot (rot -> weiß, von links unten nach rechts oben) */
+.glowbc-day.status-changeover1 { background: #fff; }
+.glowbc-day.status-changeover1::after { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(198,40,40,0) 0 50%, rgba(198,40,40,0.75) 50% 100%)}
 
-/* changeover2 = diagonal halb grün zu rot, anderer Winkel */
-.glowbc-day.status-changeover2 { background: linear-gradient(225deg, #d4edda 0 50%, #f8d7da 50% 100%); }
+/* changeover2 = links rot, rechts weiß (vertikal halbiert) */
+.glowbc-day.status-changeover2 { background: #fff; }
+.glowbc-day.status-changeover2::after { content: ""; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(198,40,40,0.75) 0 50%, rgba(198,40,40,0) 50% 100%); }
 
 /* Legende Visuals (kleine Kästchen) */
-.legend-box.status-gebucht { background: #f8d7da; }
-.legend-box.status-changeover1 { background: linear-gradient(135deg, #d4edda 0 50%, #f8d7da 50% 100%); }
-.legend-box.status-changeover2 { background: linear-gradient(225deg, #d4edda 0 50%, #f8d7da 50% 100%); }
+.legend-box.status-gebucht { background: linear-gradient(0deg, rgba(198,40,40,0.75), rgba(198,40,40,0.75)); }
+.legend-box.status-changeover1 { background: linear-gradient(135deg, rgba(198,40,40,0) 0 50%, rgba(198,40,40,0.75) 50% 100%); }
+.legend-box.status-changeover2 { background: linear-gradient(135deg, rgba(198,40,40,0.75) 0 50%, rgba(198,40,40,0) 50% 100%); }
