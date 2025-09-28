@@ -368,6 +368,29 @@ class GlowBookingCalendar {
         return $out;
     }
 
+    // ===== Helper für bestätigte Bookings =====
+    private function get_confirmed_bookings($calendar_id) {
+        global $wpdb;
+        
+        // Hole alle bestätigten Anfragen (ursprüngliche Requests mit Status 'accepted')
+        // Diese enthalten die vollständigen Kundendaten
+        // Zeige nur aktuelle und zukünftige Buchungen (nicht vergangene)
+        $today = current_time('Y-m-d');
+        $confirmed_requests = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->table} 
+             WHERE calendar_id = %d 
+             AND status = 'accepted' 
+             AND fields LIKE %s 
+             AND end_date >= %s
+             ORDER BY start_date ASC",
+            $calendar_id,
+            '%"type":"request"%',
+            $today . ' 00:00:00'
+        ), ARRAY_A);
+
+        return $confirmed_requests;
+    }
+
     // ===== UI =====
     public function render_admin_page() {
 
@@ -487,37 +510,34 @@ class GlowBookingCalendar {
         $overview_link = admin_url('admin.php?page=glow-booking-calendar');
         echo '<p><a href="'.esc_url($overview_link).'" class="button">&larr; Zurück zur Übersicht</a></p>';
 
-        // Neue Anfragen anzeigen
-        $pending_requests = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$this->table} WHERE calendar_id = %d AND status = 'pending' ORDER BY _date_created DESC",
-            $calendar_id
-        ), ARRAY_A);
+        // Bestätigte Bookings anzeigen
+        $confirmed_bookings = $this->get_confirmed_bookings($calendar_id);
 
-        if ($pending_requests) {
-            echo '<div class="notice notice-info" style="margin-top:20px;"><h3>Neue Anfragen ('.count($pending_requests).')</h3>';
+        if ($confirmed_bookings) {
+            echo '<div class="notice notice-success" style="margin-top:20px;"><h3>Bestätigte Buchungen ('.count($confirmed_bookings).')</h3>';
             echo '<table class="widefat striped" style="margin-top:10px;">';
-            echo '<thead><tr><th>Name</th><th>E-Mail</th><th>Zeitraum</th><th>Personen</th><th>Nachricht</th><th>Aktionen</th></tr></thead><tbody>';
-            foreach ($pending_requests as $req) {
-                $fields = json_decode($req['fields'], true) ?: [];
+            echo '<thead><tr><th>Name</th><th>E-Mail</th><th>Zeitraum</th><th>Personen</th><th>Nachricht</th><th>Buchungsdatum</th></tr></thead><tbody>';
+            foreach ($confirmed_bookings as $booking) {
+                $fields = json_decode($booking['fields'], true) ?: [];
                 $name = esc_html(($fields['first_name'] ?? '') . ' ' . ($fields['last_name'] ?? ''));
                 $email = esc_html($fields['email'] ?? '');
-                $start = date_i18n('d.m.Y', strtotime($req['start_date']));
-                $end = date_i18n('d.m.Y', strtotime($req['end_date']));
+                $start = date_i18n('d.m.Y', strtotime($booking['start_date']));
+                $end = date_i18n('d.m.Y', strtotime($booking['end_date']));
                 $persons = intval($fields['persons'] ?? 0);
                 $message = esc_html($fields['message'] ?? '');
+                $booking_date = date_i18n('d.m.Y H:i', strtotime($booking['date_modified']));
                 echo '<tr>';
                 echo '<td>'.$name.'</td>';
                 echo '<td><a href="mailto:'.$email.'">'.$email.'</a></td>';
                 echo '<td>'.$start.' – '.$end.'</td>';
                 echo '<td>'.$persons.'</td>';
                 echo '<td>'.wp_trim_words($message, 10).'</td>';
-                echo '<td>';
-                echo '<button class="button button-small button-primary glowbc-accept-request" data-id="'.esc_attr($req['id']).'">Annehmen</button> ';
-                echo '<button class="button button-small button-secondary glowbc-delete-request" data-id="'.esc_attr($req['id']).'">Ablehnen</button>';
-                echo '</td>';
+                echo '<td>'.$booking_date.'</td>';
                 echo '</tr>';
             }
             echo '</tbody></table></div>';
+        } else {
+            echo '<div class="notice notice-info" style="margin-top:20px;"><p>Keine bestätigten Buchungen vorhanden.</p></div>';
         }
 
         // Admin Notice nach Import
