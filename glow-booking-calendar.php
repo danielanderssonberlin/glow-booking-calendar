@@ -547,6 +547,14 @@ class GlowBookingCalendar {
         // Bestätigte Bookings anzeigen
         $confirmed_bookings = $this->get_confirmed_bookings($calendar_id);
 
+        // Buchungs-Export/Import Buttons (immer anzeigen)
+        $booking_export_url = add_query_arg([
+            'page' => 'glow-booking-calendar',
+            'cal' => $calendar_id,
+            'glowbc_booking_export' => 1,
+        ], admin_url('admin.php'));
+        $booking_export_url = wp_nonce_url($booking_export_url, 'glowbc_booking_export', 'glowbc_booking_export_nonce');
+
         if ($confirmed_bookings) {
             echo '<div class="notice notice-success" style="margin-top:20px;"><h3>Bestätigte Buchungen ('.count($confirmed_bookings).')</h3>';
             echo '<table class="widefat striped" style="margin-top:10px;">';
@@ -570,33 +578,26 @@ class GlowBookingCalendar {
                 echo '</tr>';
             }
             echo '</tbody></table>';
-            
-            // Buchungs-Export/Import Buttons
-            $booking_export_url = add_query_arg([
-                'page' => 'glow-booking-calendar',
-                'cal' => $calendar_id,
-                'glowbc_booking_export' => 1,
-            ], admin_url('admin.php'));
-            $booking_export_url = wp_nonce_url($booking_export_url, 'glowbc_booking_export', 'glowbc_booking_export_nonce');
-            
-            echo '<div style="margin:10px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">';
-            echo '<a href="'.esc_url($booking_export_url).'" class="button button-secondary">Buchungen als CSV exportieren</a>';
-            
-            // Import-Formular für Buchungen
-            echo '<form method="post" enctype="multipart/form-data" style="display:inline-flex; gap:8px; align-items:center;">';
-            echo wp_nonce_field('glowbc_booking_import', 'glowbc_booking_import_nonce', true, false);
-            echo '<input type="hidden" name="page" value="glow-booking-calendar" />';
-            echo '<input type="hidden" name="cal" value="'.esc_attr($calendar_id).'" />';
-            echo '<input type="file" name="glowbc_booking_csv" accept=".csv,text/csv" />';
-            echo '<button class="button">Buchungen CSV importieren</button>';
-            echo '<input type="hidden" name="glowbc_booking_import" value="1" />';
-            echo '</form>';
-            echo '</div>';
-            
             echo '</div>';
         } else {
-            echo '<div class="notice notice-info" style="margin-top:20px;"><p>Keine bestätigten Buchungen vorhanden.</p></div>';
+            echo '<div class="notice notice-info" style="margin-top:20px;"><h3>Bestätigte Buchungen (0)</h3>';
+            echo '<p>Keine bestätigten Buchungen vorhanden.</p></div>';
         }
+        
+        // Export/Import Buttons für Buchungen (immer anzeigen)
+        echo '<div style="margin:10px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">';
+        echo '<a href="'.esc_url($booking_export_url).'" class="button button-secondary">Buchungen als CSV exportieren</a>';
+        
+        // Import-Formular für Buchungen
+        echo '<form method="post" enctype="multipart/form-data" style="display:inline-flex; gap:8px; align-items:center;">';
+        echo wp_nonce_field('glowbc_booking_import', 'glowbc_booking_import_nonce', true, false);
+        echo '<input type="hidden" name="page" value="glow-booking-calendar" />';
+        echo '<input type="hidden" name="cal" value="'.esc_attr($calendar_id).'" />';
+        echo '<input type="file" name="glowbc_booking_csv" accept=".csv,text/csv" />';
+        echo '<button class="button">Buchungen CSV importieren</button>';
+        echo '<input type="hidden" name="glowbc_booking_import" value="1" />';
+        echo '</form>';
+        echo '</div>';
         
         // Admin Notice nach Buchungs-Import
         if (!empty($_GET['glowbc_booking_imported'])) {
