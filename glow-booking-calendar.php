@@ -27,6 +27,7 @@ class GlowBookingCalendar {
         add_action('wp_ajax_glowbc_save_day', [$this, 'ajax_save_day']);
         // CSV Import/Export
         add_action('admin_init', [$this, 'maybe_handle_export_import']);
+        add_action('admin_init', [$this, 'maybe_handle_booking_export_import']);
         add_action('wp_ajax_glowbc_bulk_save', [$this, 'ajax_bulk_save']);
         add_action('wp_ajax_glowbc_delete_calendar', [$this, 'ajax_delete_calendar']);
 
@@ -568,9 +569,41 @@ class GlowBookingCalendar {
                 echo '<td>'.$booking_date.'</td>';
                 echo '</tr>';
             }
-            echo '</tbody></table></div>';
+            echo '</tbody></table>';
+            
+            // Buchungs-Export/Import Buttons
+            $booking_export_url = add_query_arg([
+                'page' => 'glow-booking-calendar',
+                'cal' => $calendar_id,
+                'glowbc_booking_export' => 1,
+            ], admin_url('admin.php'));
+            $booking_export_url = wp_nonce_url($booking_export_url, 'glowbc_booking_export', 'glowbc_booking_export_nonce');
+            
+            echo '<div style="margin:10px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">';
+            echo '<a href="'.esc_url($booking_export_url).'" class="button button-secondary">Buchungen als CSV exportieren</a>';
+            
+            // Import-Formular für Buchungen
+            echo '<form method="post" enctype="multipart/form-data" style="display:inline-flex; gap:8px; align-items:center;">';
+            echo wp_nonce_field('glowbc_booking_import', 'glowbc_booking_import_nonce', true, false);
+            echo '<input type="hidden" name="page" value="glow-booking-calendar" />';
+            echo '<input type="hidden" name="cal" value="'.esc_attr($calendar_id).'" />';
+            echo '<input type="file" name="glowbc_booking_csv" accept=".csv,text/csv" />';
+            echo '<button class="button">Buchungen CSV importieren</button>';
+            echo '<input type="hidden" name="glowbc_booking_import" value="1" />';
+            echo '</form>';
+            echo '</div>';
+            
+            echo '</div>';
         } else {
             echo '<div class="notice notice-info" style="margin-top:20px;"><p>Keine bestätigten Buchungen vorhanden.</p></div>';
+        }
+        
+        // Admin Notice nach Buchungs-Import
+        if (!empty($_GET['glowbc_booking_imported'])) {
+            $count = intval($_GET['glowbc_booking_imported']);
+            $skipped = intval($_GET['glowbc_booking_skipped'] ?? 0);
+            echo '<div class="notice notice-success is-dismissible"><p>Buchungs-Import abgeschlossen: '
+                . esc_html($count) . ' Buchungen importiert, ' . esc_html($skipped) . ' übersprungen.</p></div>';
         }
 
         // Admin Notice nach Import
@@ -1023,6 +1056,243 @@ class GlowBookingCalendar {
             $this->upsert_day($calendar_id, $ymd, $availability, $desc);
             $imported++;
         }
+        fclose($fh);
+        return ['imported'=>$imported,'skipped'=>$skipped];
+    }
+
+    // ===== Buchungs CSV Import/Export Handling =====
+    public function maybe_handle_booking_export_import() {
+        if (!is_admin() || !current_user_can('manage_options')) return;
+        $on_page = isset($_REQUEST['page']) && $_REQUEST['page'] === 'glow-booking-calendar';
+        if (!$on_page) return;
+
+        // BOOKING EXPORT (GET)
+        if (isset($_GET['glowbc_booking_export'])) {
+            check_admin_referer('glowbc_booking_export', 'glowbc_booking_export_nonce');
+            $calendar_id = isset($_GET['cal']) ? max(1, intval($_GET['cal'])) : intval(apply_filters('glowbc_calendar_id_default', 1));
+            $this->do_booking_export_csv($calendar_id);
+            exit;
+        }
+
+        // BOOKING IMPORT (POST)
+        if (!empty($_POST['glowbc_booking_import'])) {
+            check_admin_referer('glowbc_booking_import', 'glowbc_booking_import_nonce');
+            $calendar_id = isset($_POST['cal']) ? max(1, intval($_POST['cal'])) : intval(apply_filters('glowbc_calendar_id_default', 1));
+            $year  = isset($_POST['y']) ? max(1970, intval($_POST['y'])) : intval(current_time('Y'));
+            $month = isset($_POST['m']) ? min(12, max(1, intval($_POST['m']))) : intval(current_time('m'));
+
+            $imported = 0; $skipped = 0;
+            if (!empty($_FILES['glowbc_booking_csv']) && is_uploaded_file($_FILES['glowbc_booking_csv']['tmp_name'])) {
+                $res = $this->do_booking_import_csv($_FILES['glowbc_booking_csv']['tmp_name'], $calendar_id);
+                $imported = $res['imported'] ?? 0;
+                $skipped = $res['skipped'] ?? 0;
+            }
+
+            $redirect = add_query_arg([
+                'page' => 'glow-booking-calendar',
+                'cal' => $calendar_id,
+                'y' => $year,
+                'm' => $month,
+                'glowbc_booking_imported' => $imported,
+                'glowbc_booking_skipped' => $skipped,
+            ], admin_url('admin.php'));
+            wp_safe_redirect($redirect);
+            exit;
+        }
+    }
+
+    private function do_booking_export_csv($calendar_id) {
+        if (!current_user_can('manage_options')) wp_die('Unauthorized');
+
+        global $wpdb;
+        $table_calendars = $wpdb->prefix . 'glow_calendars';
+        
+        // Hole Kalender-Name
+        $calendar = $wpdb->get_row($wpdb->prepare("SELECT name FROM $table_calendars WHERE id = %d", $calendar_id), ARRAY_A);
+        $calendar_name = $calendar ? $calendar['name'] : 'Unbekannter Kalender';
+
+        // Hole alle bestätigten Buchungen für diesen Kalender
+        $bookings = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->table} 
+             WHERE calendar_id = %d 
+             AND status = 'accepted' 
+             AND fields LIKE %s 
+             ORDER BY start_date ASC",
+            $calendar_id,
+            '%"type":"request"%'
+        ), ARRAY_A);
+
+        $filename = sprintf('buchungen-kalender-%d-%s.csv', $calendar_id, date('Y-m-d'));
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="'.$filename.'"');
+
+        $out = fopen('php://output', 'w');
+        
+        // Header entsprechend Ihrem gewünschten Format
+        fputcsv($out, [
+            'Booking ID',
+            'Booking Status', 
+            'Calendar ID',
+            'Calendar Name',
+            'Start Date',
+            'End Date',
+            'Stay Length - Days',
+            'Stay Length - Nights',
+            'Date Created',
+            'first name (ID:1)',
+            'last name (ID:2)',
+            'E-Mail (ID:4)',
+            'Straße (ID:8)',
+            'PLZ / Ort (ID:9)',
+            'number of guests (ID:3)',
+            'number of children (up to incl 6 years) (ID:6)',
+            'number of children (7-16 years) (ID:7)',
+            'your message (ID:5)'
+        ]);
+
+        foreach ($bookings as $booking) {
+            $fields = json_decode($booking['fields'], true) ?: [];
+            
+            $start_date = new DateTime($booking['start_date']);
+            $end_date = new DateTime($booking['end_date']);
+            $stay_days = $start_date->diff($end_date)->days + 1;
+            $stay_nights = $stay_days - 1;
+            
+            fputcsv($out, [
+                $booking['id'],
+                $booking['status'],
+                $calendar_id,
+                $calendar_name,
+                $start_date->format('Y-m-d'),
+                $end_date->format('Y-m-d'),
+                $stay_days,
+                $stay_nights,
+                (new DateTime($booking['_date_created']))->format('Y-m-d'),
+                $fields['first_name'] ?? '',
+                $fields['last_name'] ?? '',
+                $fields['email'] ?? '',
+                $fields['street'] ?? '',
+                $fields['city'] ?? '', // PLZ / Ort - wird als neues Feld hinzugefügt
+                $fields['persons'] ?? '',
+                $fields['kids_0_6'] ?? '',
+                $fields['kids_7_16'] ?? '',
+                $fields['message'] ?? ''
+            ]);
+        }
+        fclose($out);
+    }
+
+    private function do_booking_import_csv($tmpPath, $calendar_id) {
+        if (!current_user_can('manage_options')) return ['imported'=>0,'skipped'=>0];
+        
+        $fh = fopen($tmpPath, 'r');
+        if (!$fh) return ['imported'=>0,'skipped'=>0];
+
+        global $wpdb;
+        $imported = 0; $skipped = 0; $line = 0;
+        
+        // Standard-Spalten-Indizes basierend auf Ihrem Format
+        $indices = [
+            'booking_id' => 0,
+            'booking_status' => 1,
+            'calendar_id' => 2,
+            'calendar_name' => 3,
+            'start_date' => 4,
+            'end_date' => 5,
+            'stay_days' => 6,
+            'stay_nights' => 7,
+            'date_created' => 8,
+            'first_name' => 9,
+            'last_name' => 10,
+            'email' => 11,
+            'street' => 12,
+            'city' => 13,
+            'persons' => 14,
+            'kids_0_6' => 15,
+            'kids_7_16' => 16,
+            'message' => 17
+        ];
+
+        while (($row = fgetcsv($fh)) !== false) {
+            $line++;
+            
+            // Header-Zeile überspringen
+            if ($line === 1) {
+                continue;
+            }
+
+            // Daten extrahieren
+            $booking_id = isset($row[$indices['booking_id']]) ? intval($row[$indices['booking_id']]) : 0;
+            $start_date = isset($row[$indices['start_date']]) ? trim($row[$indices['start_date']]) : '';
+            $end_date = isset($row[$indices['end_date']]) ? trim($row[$indices['end_date']]) : '';
+            $first_name = isset($row[$indices['first_name']]) ? trim($row[$indices['first_name']]) : '';
+            $last_name = isset($row[$indices['last_name']]) ? trim($row[$indices['last_name']]) : '';
+            $email = isset($row[$indices['email']]) ? trim($row[$indices['email']]) : '';
+
+            // Validierung
+            if (!$start_date || !$end_date || !$first_name || !$last_name || !$email) {
+                $skipped++;
+                continue;
+            }
+
+            // Datum validieren
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date)) {
+                $skipped++;
+                continue;
+            }
+
+            // Prüfen ob Buchung bereits existiert (basierend auf ID oder eindeutigen Daten)
+            if ($booking_id > 0) {
+                $existing = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$this->table} WHERE id = %d",
+                    $booking_id
+                ));
+                if ($existing) {
+                    $skipped++;
+                    continue;
+                }
+            }
+
+            // Fields-Array erstellen
+            $fields = [
+                'type' => 'request',
+                'first_name' => $first_name,
+                'last_name' => $last_name,
+                'email' => $email,
+                'street' => isset($row[$indices['street']]) ? trim($row[$indices['street']]) : '',
+                'city' => isset($row[$indices['city']]) ? trim($row[$indices['city']]) : '',
+                'persons' => isset($row[$indices['persons']]) ? intval($row[$indices['persons']]) : 1,
+                'kids_0_6' => isset($row[$indices['kids_0_6']]) ? intval($row[$indices['kids_0_6']]) : 0,
+                'kids_7_16' => isset($row[$indices['kids_7_16']]) ? intval($row[$indices['kids_7_16']]) : 0,
+                'message' => isset($row[$indices['message']]) ? trim($row[$indices['message']]) : '',
+                'availability' => '',
+                'description' => '',
+            ];
+
+            // Buchung in Datenbank einfügen
+            $data = [
+                'calendar_id' => $calendar_id,
+                'form_id'     => null,
+                'start_date'  => $start_date . ' 00:00:00',
+                'end_date'    => $end_date . ' 23:59:59',
+                'fields'      => wp_json_encode($fields),
+                'status'      => 'accepted',
+                'is_read'     => 1,
+            ];
+
+            if ($booking_id > 0) {
+                $data['id'] = $booking_id;
+            }
+
+            $result = $wpdb->insert($this->table, $data);
+            if ($result !== false) {
+                $imported++;
+            } else {
+                $skipped++;
+            }
+        }
+        
         fclose($fh);
         return ['imported'=>$imported,'skipped'=>$skipped];
     }

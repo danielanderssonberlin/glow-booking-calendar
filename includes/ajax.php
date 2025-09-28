@@ -22,6 +22,7 @@ function glowbc_ajax_create_request(){
     $last_name  = sanitize_text_field($_POST['last_name'] ?? '');
     $email      = sanitize_email($_POST['email'] ?? '');
     $street     = sanitize_text_field($_POST['street'] ?? '');
+    $city       = sanitize_text_field($_POST['city'] ?? '');
     $persons    = intval($_POST['persons'] ?? 1);
     $kids_0_6   = intval($_POST['kids_0_6'] ?? 0);
     $kids_7_16  = intval($_POST['kids_7_16'] ?? 0);
@@ -37,6 +38,7 @@ function glowbc_ajax_create_request(){
         'last_name' => $last_name,
         'email' => $email,
         'street' => $street,
+        'city' => $city,
         'persons' => $persons,
         'kids_0_6' => $kids_0_6,
         'kids_7_16' => $kids_7_16,

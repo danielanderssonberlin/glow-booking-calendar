@@ -24,6 +24,7 @@ add_shortcode('glowbc_calendar', function($atts){
             <label class="full">Nachname*<br><input type="text" name="last_name" required></label>
             <label class="full">E-Mail*<br><input type="email" name="email" required></label>
             <label class="full">Straße<br><input type="text" name="street"></label>
+            <label class="full">PLZ / Ort<br><input type="text" name="city"></label>
 
             <label class="full">Anzahl der Personen*<br>
                 <select name="persons" required>
@@ -131,6 +132,7 @@ add_shortcode('glowbc_request_form', function($atts){
             <label class="full">Nachname*<br><input type="text" name="last_name" required></label>
             <label class="full">E-Mail*<br><input type="email" name="email" required></label>
             <label class="full">Straße<br><input type="text" name="street"></label>
+            <label class="full">PLZ / Ort<br><input type="text" name="city"></label>
 
             <label class="full">Anzahl der Personen*<br>
                 <select name="persons" required>
