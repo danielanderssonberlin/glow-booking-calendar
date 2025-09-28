@@ -4,7 +4,7 @@
  * Description: Einfacher Buchungskalender (Backend) mit Tagesstatus und Beschreibung, Multi-Kalender-fähig.
  * Version: 0.3.0
  * Author: Glow
- */ 
+ */
 
 if (!defined('ABSPATH')) exit;
 
