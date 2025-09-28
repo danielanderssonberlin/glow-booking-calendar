@@ -1187,11 +1187,20 @@ class GlowBookingCalendar {
     private function do_booking_import_csv($tmpPath, $calendar_id) {
         if (!current_user_can('manage_options')) return ['imported'=>0,'skipped'=>0];
         
-        $fh = fopen($tmpPath, 'r');
-        if (!$fh) return ['imported'=>0,'skipped'=>0];
+        // Datei komplett einlesen für robustes CSV-Parsing
+        $content = file_get_contents($tmpPath);
+        if (!$content) return ['imported'=>0,'skipped'=>0];
 
         global $wpdb;
-        $imported = 0; $skipped = 0; $line = 0;
+        $imported = 0; $skipped = 0;
+        
+        // CSV-Zeilen mit robustem Parser parsen (unterstützt mehrzeilige Felder)
+        $rows = $this->parse_csv_content($content);
+        
+        if (empty($rows)) return ['imported'=>0,'skipped'=>0];
+        
+        // Header-Zeile entfernen
+        array_shift($rows);
         
         // Standard-Spalten-Indizes basierend auf Ihrem Format
         $indices = [
@@ -1215,14 +1224,7 @@ class GlowBookingCalendar {
             'message' => 17
         ];
 
-        while (($row = fgetcsv($fh)) !== false) {
-            $line++;
-            
-            // Header-Zeile überspringen
-            if ($line === 1) {
-                continue;
-            }
-
+        foreach ($rows as $row) {
             // Daten extrahieren
             $booking_id = isset($row[$indices['booking_id']]) ? intval($row[$indices['booking_id']]) : 0;
             $start_date = isset($row[$indices['start_date']]) ? trim($row[$indices['start_date']]) : '';
@@ -1255,18 +1257,28 @@ class GlowBookingCalendar {
                 }
             }
 
+            // Felder bereinigen (- durch leeren String ersetzen)
+            $street = isset($row[$indices['street']]) ? trim($row[$indices['street']]) : '';
+            if ($street === '-') $street = '';
+            
+            $city = isset($row[$indices['city']]) ? trim($row[$indices['city']]) : '';
+            if ($city === '-') $city = '';
+            
+            $message = isset($row[$indices['message']]) ? trim($row[$indices['message']]) : '';
+            if ($message === '-') $message = '';
+
             // Fields-Array erstellen
             $fields = [
                 'type' => 'request',
                 'first_name' => $first_name,
                 'last_name' => $last_name,
                 'email' => $email,
-                'street' => isset($row[$indices['street']]) ? trim($row[$indices['street']]) : '',
-                'city' => isset($row[$indices['city']]) ? trim($row[$indices['city']]) : '',
+                'street' => $street,
+                'city' => $city,
                 'persons' => isset($row[$indices['persons']]) ? intval($row[$indices['persons']]) : 1,
                 'kids_0_6' => isset($row[$indices['kids_0_6']]) ? intval($row[$indices['kids_0_6']]) : 0,
                 'kids_7_16' => isset($row[$indices['kids_7_16']]) ? intval($row[$indices['kids_7_16']]) : 0,
-                'message' => isset($row[$indices['message']]) ? trim($row[$indices['message']]) : '',
+                'message' => $message,
                 'availability' => '',
                 'description' => '',
             ];
@@ -1294,8 +1306,67 @@ class GlowBookingCalendar {
             }
         }
         
-        fclose($fh);
         return ['imported'=>$imported,'skipped'=>$skipped];
+    }
+
+    /**
+     * Robuster CSV-Parser der mehrzeilige Felder korrekt behandelt
+     */
+    private function parse_csv_content($content) {
+        $rows = [];
+        $current_row = [];
+        $current_field = '';
+        $in_quotes = false;
+        $i = 0;
+        $len = strlen($content);
+        
+        while ($i < $len) {
+            $char = $content[$i];
+            
+            if ($char === '"') {
+                if ($in_quotes && $i + 1 < $len && $content[$i + 1] === '"') {
+                    // Escaped quote
+                    $current_field .= '"';
+                    $i += 2;
+                    continue;
+                } else {
+                    // Toggle quote state
+                    $in_quotes = !$in_quotes;
+                }
+            } elseif ($char === ',' && !$in_quotes) {
+                // Field separator
+                $current_row[] = $current_field;
+                $current_field = '';
+            } elseif (($char === "\n" || $char === "\r") && !$in_quotes) {
+                // Row separator
+                if ($current_field !== '' || !empty($current_row)) {
+                    $current_row[] = $current_field;
+                    if (!empty($current_row)) {
+                        $rows[] = $current_row;
+                    }
+                    $current_row = [];
+                    $current_field = '';
+                }
+                // Skip \r\n combinations
+                if ($char === "\r" && $i + 1 < $len && $content[$i + 1] === "\n") {
+                    $i++;
+                }
+            } else {
+                $current_field .= $char;
+            }
+            
+            $i++;
+        }
+        
+        // Add last field and row if not empty
+        if ($current_field !== '' || !empty($current_row)) {
+            $current_row[] = $current_field;
+            if (!empty($current_row)) {
+                $rows[] = $current_row;
+            }
+        }
+        
+        return $rows;
     }
 }
 
