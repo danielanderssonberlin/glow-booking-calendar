@@ -510,6 +510,39 @@ class GlowBookingCalendar {
         $overview_link = admin_url('admin.php?page=glow-booking-calendar');
         echo '<p><a href="'.esc_url($overview_link).'" class="button">&larr; Zurück zur Übersicht</a></p>';
 
+        // Offene Anfragen anzeigen
+        $pending_requests = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->table} WHERE calendar_id = %d AND status = 'pending' ORDER BY _date_created DESC",
+            $calendar_id
+        ), ARRAY_A);
+
+        if ($pending_requests) {
+            echo '<div class="notice notice-warning" style="margin-top:20px;"><h3>Offene Anfragen ('.count($pending_requests).')</h3>';
+            echo '<table class="widefat striped" style="margin-top:10px;">';
+            echo '<thead><tr><th>Name</th><th>E-Mail</th><th>Zeitraum</th><th>Personen</th><th>Nachricht</th><th>Aktionen</th></tr></thead><tbody>';
+            foreach ($pending_requests as $req) {
+                $fields = json_decode($req['fields'], true) ?: [];
+                $name = esc_html(($fields['first_name'] ?? '') . ' ' . ($fields['last_name'] ?? ''));
+                $email = esc_html($fields['email'] ?? '');
+                $start = date_i18n('d.m.Y', strtotime($req['start_date']));
+                $end = date_i18n('d.m.Y', strtotime($req['end_date']));
+                $persons = intval($fields['persons'] ?? 0);
+                $message = esc_html($fields['message'] ?? '');
+                echo '<tr>';
+                echo '<td>'.$name.'</td>';
+                echo '<td><a href="mailto:'.$email.'">'.$email.'</a></td>';
+                echo '<td>'.$start.' – '.$end.'</td>';
+                echo '<td>'.$persons.'</td>';
+                echo '<td>'.wp_trim_words($message, 10).'</td>';
+                echo '<td>';
+                echo '<button class="button button-small button-primary glowbc-accept-request" data-id="'.esc_attr($req['id']).'">Annehmen</button> ';
+                echo '<button class="button button-small button-secondary glowbc-delete-request" data-id="'.esc_attr($req['id']).'">Ablehnen</button>';
+                echo '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody></table></div>';
+        }
+
         // Bestätigte Bookings anzeigen
         $confirmed_bookings = $this->get_confirmed_bookings($calendar_id);
 
