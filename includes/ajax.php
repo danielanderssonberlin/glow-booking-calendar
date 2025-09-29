@@ -138,13 +138,42 @@ function glowbc_ajax_get_admin_calendar(){
         $fields = !empty($r['fields']) ? json_decode($r['fields'], true) : [];
         $availability = $fields['availability'] ?? '';
         
-        if ($availability) {
+        if ($availability === 'gebucht') {
+            $current = strtotime($r['start_date']);
+            $end = strtotime($r['end_date']);
+            $startDate = date('Y-m-d', $current);
+            $endDate = date('Y-m-d', $end);
+            
+            while ($current <= $end) {
+                $dateKey = date('Y-m-d', $current);
+                // Nur Tage im aktuellen Monat berücksichtigen
+                if ($dateKey >= sprintf('%04d-%02d-01', $year, $month) && 
+                    $dateKey <= sprintf('%04d-%02d-%02d', $year, $month, $days_in_month)) {
+                    
+                    // Changeover-Logik anwenden
+                    if ($dateKey === $startDate && $dateKey === $endDate) {
+                        // Eintägige Buchung
+                        $statusMap[$dateKey] = 'gebucht';
+                    } elseif ($dateKey === $startDate) {
+                        // Erster Tag einer mehrtägigen Buchung
+                        $statusMap[$dateKey] = 'changeover1';
+                    } elseif ($dateKey === $endDate) {
+                        // Letzter Tag einer mehrtägigen Buchung
+                        $statusMap[$dateKey] = 'changeover2';
+                    } else {
+                        // Mittlere Tage
+                        $statusMap[$dateKey] = 'gebucht';
+                    }
+                }
+                $current = strtotime('+1 day', $current);
+            }
+        } elseif ($availability) {
+            // Für andere Verfügbarkeiten (falls vorhanden)
             $current = strtotime($r['start_date']);
             $end = strtotime($r['end_date']);
             
             while ($current <= $end) {
                 $dateKey = date('Y-m-d', $current);
-                // Nur Tage im aktuellen Monat berücksichtigen
                 if ($dateKey >= sprintf('%04d-%02d-01', $year, $month) && 
                     $dateKey <= sprintf('%04d-%02d-%02d', $year, $month, $days_in_month)) {
                     $statusMap[$dateKey] = $availability;
