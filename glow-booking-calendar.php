@@ -481,7 +481,7 @@ class GlowBookingCalendar {
              AND end_date >= %s
              ORDER BY start_date ASC",
             $calendar_id,
-            '%"type":"request"%',
+            '%"type":"booking"%',
             $today . ' 00:00:00'
         ), ARRAY_A);
 

@@ -247,6 +247,74 @@ function glowbc_ajax_get_admin_calendar(){
 }
 add_action('wp_ajax_glowbc_get_admin_calendar', 'glowbc_ajax_get_admin_calendar');
 
+// ===== AJAX: Get Admin Table for Month =====
+function glowbc_ajax_get_admin_table(){
+    check_ajax_referer('glowbc-nonce', 'nonce');
+    if(!current_user_can('manage_options')){ wp_send_json_error(['message'=>'Unauthorized'], 403); }
+
+    $calendar_id = intval($_POST['calendar_id'] ?? 0);
+    $year = intval($_POST['y'] ?? date('Y'));
+    $month = intval($_POST['m'] ?? date('n'));
+    
+    if(!$calendar_id){ wp_send_json_error(['message'=>'Ungültige Kalender-ID']); }
+
+    // Get the plugin instance to access its methods
+    $plugin = GlowBookingCalendar::getInstance();
+    
+    // Generate days for the month
+    $first_day = new DateTime("$year-$month-01");
+    $last_day = new DateTime($first_day->format('Y-m-t'));
+    $days = [];
+    for($d = clone $first_day; $d <= $last_day; $d->modify('+1 day')){
+        $days[] = clone $d;
+    }
+
+    ob_start();
+    echo '<table class="widefat fixed striped glowbc-table"><thead>
+            <tr>
+                <th style="width:140px">Datum</th>
+                <th style="width:220px">Verfügbarkeit</th>
+                <th>Beschreibung</th>
+                <th style="width:120px">Aktion</th>
+            </tr>
+          </thead><tbody>';
+
+    foreach ($days as $day) {
+        $row = $plugin->get_entry_for_day($calendar_id, $day);
+        $availability = $row['fields']['availability'] ?? '';
+        $description  = $row['fields']['description'] ?? '';
+        $row_id = $row['id'] ?? '';
+
+        $dateLabel = esc_html($day->format('D, d.m.Y'));
+        $dateKey   = esc_attr($day->format('Y-m-d'));
+
+        echo '<tr data-date="'.$dateKey.'" data-row-id="'.esc_attr($row_id).'">
+                <td>'.$dateLabel.'</td>
+                <td>
+                    <select class="glowbc-availability">
+                        <option value="">— bitte wählen —</option>
+                        <option value="verfuegbar" '.selected($availability, 'verfuegbar', false).'>verfügbar</option>
+                        <option value="gebucht" '.selected($availability, 'gebucht', false).'>gebucht</option>
+                        <option value="changeover1" '.selected($availability, 'changeover1', false).'>changeover 1</option>
+                        <option value="changeover2" '.selected($availability, 'changeover2', false).'>changeover 2</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="glowbc-description" value="'.esc_attr($description).'" placeholder="Beschreibung..." />
+                </td>
+                <td>
+                    <button type="button" class="button button-primary glowbc-save">Speichern</button>
+                    <span class="glowbc-status"></span>
+                </td>
+              </tr>';
+    }
+
+    echo '</tbody></table>';
+    $html = ob_get_clean();
+    wp_send_json_success(['html'=>$html]);
+}
+add_action('wp_ajax_glowbc_get_admin_table', 'glowbc_ajax_get_admin_table');
+
 // ===== AJAX: Accept Request (Admin) =====
 function glowbc_ajax_accept_request(){
     check_ajax_referer('glowbc-nonce', 'nonce');
@@ -265,41 +333,19 @@ function glowbc_ajax_accept_request(){
     $fields = json_decode($row['fields'] ?? '{}', true) ?: [];
     $desc = trim(($fields['first_name'] ?? '').' '.($fields['last_name'] ?? '')).' ('.$row['start_date'].'–'.$row['end_date'].')';
 
-    // Create bookings for each day
-    for($d=$start; $d <= $end; $d = $d->modify('+1 day')){
-        $ymd = $d->format('Y-m-d');
-        $start_dt = $ymd.' 00:00:00';
-        $end_dt   = $ymd.' 23:59:59';
-        $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE calendar_id=%d AND start_date >= %s AND end_date <= %s ORDER BY id DESC LIMIT 1",
-            $calendar_id, $start_dt, $end_dt
-        ));
-        $isStart = ($ymd === $start->format('Y-m-d'));
-        $isEnd   = ($ymd === $end->format('Y-m-d'));
-        if ($isStart && $isEnd) {
-            $availability = 'gebucht';
-        } elseif ($isStart) {
-            $availability = 'changeover1';
-        } elseif ($isEnd) {
-            $availability = 'changeover2';
-        } else {
-            $availability = 'gebucht';
-        }
-        $data = [
-            'calendar_id' => $calendar_id,
-            'form_id'     => null,
-            'start_date'  => $start_dt,
-            'end_date'    => $end_dt,
-            'fields'      => wp_json_encode(['availability'=>$availability,'description'=>$desc]),
-            'status'      => 'accepted',
-            'is_read'     => 1,
-        ];
-        if($existing){ $wpdb->update($table, $data, ['id'=>intval($existing)]); }
-        else { $wpdb->insert($table, $data); }
-    }
-
-    // Mark request as accepted
-    $wpdb->update($table, ['status'=>'accepted','is_read'=>1], ['id'=>$id]);
+    // Simply mark the request as accepted and add availability field
+    // No need to create a separate booking entry - the request becomes the booking
+    $updated_fields = $fields;
+    $updated_fields['availability'] = 'gebucht';
+    $updated_fields['type'] = 'booking';
+    
+    $wpdb->update($table, [
+        'status' => 'accepted',
+        'is_read' => 1,
+        'fields' => wp_json_encode($updated_fields)
+    ], ['id' => $id]);
+    
+    error_log("ACCEPT REQUEST: Converted request ID $id to booking for period " . $row['start_date'] . " to " . $row['end_date']);
 
     wp_send_json_success(['message'=>'Anfrage akzeptiert und im Kalender eingetragen.']);
 }

@@ -125,7 +125,10 @@
   // Admin Calendar Navigation
   function loadAdminCalendar(year, month) {
     const $cal = $('.glowbc-calendar').first();
+    const $table = $('.glowbc-table').first();
     const calendarId = $cal.data('calendar-id');
+    
+    // Load calendar
     $.post(GlowBC.ajaxUrl, {
       action: 'glowbc_get_admin_calendar',
       nonce: GlowBC.nonce,
@@ -139,7 +142,24 @@
         alert(res.data.message);
       }
     }).fail(function(){
-      alert('Netzwerkfehler');
+      alert('Netzwerkfehler beim Laden des Kalenders');
+    });
+    
+    // Load table for the same month
+    $.post(GlowBC.ajaxUrl, {
+      action: 'glowbc_get_admin_table',
+      nonce: GlowBC.nonce,
+      calendar_id: calendarId,
+      y: year,
+      m: month
+    }).done(function(res){
+      if (res.success) {
+        $table.replaceWith(res.data.html);
+      } else {
+        console.error('Fehler beim Laden der Tabelle:', res.data.message);
+      }
+    }).fail(function(){
+      console.error('Netzwerkfehler beim Laden der Tabelle');
     });
   }
 
