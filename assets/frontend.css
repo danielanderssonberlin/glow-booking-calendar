@@ -23,6 +23,12 @@
 }
 .status-verfuegbar { background: #cfc; }
 .status-gebucht    { background: #fcc; }
+.glowbc-frontend-calendar .legend-box.status-changeover1 {
+    background: linear-gradient(135deg, rgba(212,237,218,1) 0 50%, #f8d7da 50% 100%);
+}
+.glowbc-frontend-calendar .legend-box.status-changeover2 {
+    background: linear-gradient(225deg, rgba(212,237,218,1) 0 50%, #f8d7da 50% 100%);
+}
 
 .glowbc-calendar td.status-frei,
 .legend-box.status-frei {
@@ -37,7 +43,7 @@
     position: relative;
     top: 0;
     right: 0;
-    width: 155px;
+    width: fit-content;
     margin-top: 0;
     text-align: left;
     margin: 1em 0;

@@ -147,8 +147,7 @@ if (!function_exists('glowbc_render_calendar_html')) {
         $html .= '<div class="glowbc-legend-frontend">';
         $html .= '<span><i class="legend-box status-gebucht"></i> gebucht</span>';
         $html .= '<span><i class="legend-box status-frei"></i> frei</span>';
-        $html .= '<span><i class="legend-box status-changeover1"></i> Anreise</span>';
-        $html .= '<span><i class="legend-box status-changeover2"></i> Abreise</span>';
+        $html .= '<span><i class="legend-box status-changeover1"></i> Anreise / Abreise</span>';
         $html .= '</div>';
 
         return $html;

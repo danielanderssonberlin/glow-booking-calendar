@@ -5,7 +5,7 @@
  * Version: 0.3.0
  * Author: Glow
  */
-
+error_log("Glow Booking Calendar loaded");
 if (!defined('ABSPATH')) exit;
 
 require_once plugin_dir_path(__FILE__) . 'includes/shortcodes.php';
@@ -100,36 +100,47 @@ class GlowBookingCalendar {
         $booked = [];
         $changeover = [];
 
+        error_log("BACKEND INITIAL: Found " . count($results) . " results for month $month");
+        
         foreach($results as $r) {
             $fields = json_decode($r['fields'], true) ?: [];
             $availability = $fields['availability'] ?? '';
+            
+            error_log("BACKEND INITIAL: Processing booking - start: {$r['start_date']}, end: {$r['end_date']}, availability: $availability");
 
             // Skip if not a booking
             if ($availability !== 'gebucht') {
                 continue;
             }
 
-            $startDate = $r['start_date'];
-            $endDate = $r['end_date'];
-            $current = strtotime($startDate);
-            $end = strtotime($endDate);
+            // Normalize dates to Y-m-d format for comparison (like AJAX function)
+            $current = strtotime($r['start_date']);
+            $end = strtotime($r['end_date']);
+            $startDate = date('Y-m-d', $current);
+            $endDate = date('Y-m-d', $end);
+            
+            error_log("BACKEND INITIAL: Normalized dates - start: $startDate, end: $endDate");
 
             while($current <= $end) {
                 $day = date('Y-m-d', $current);
                 
-                // Apply changeover logic like in backend AJAX and frontend
-                if ($startDate === $endDate) {
+                // Apply changeover logic exactly like AJAX function
+                if ($day === $startDate && $day === $endDate) {
                     // Single day booking
                     $booked[] = $day;
+                    error_log("BACKEND INITIAL: Single day booking: $day -> gebucht");
                 } elseif ($day === $startDate) {
                     // First day of multi-day booking
                     $changeover['changeover1'][] = $day;
+                    error_log("BACKEND INITIAL: First day: $day -> changeover1");
                 } elseif ($day === $endDate) {
                     // Last day of multi-day booking
                     $changeover['changeover2'][] = $day;
+                    error_log("BACKEND INITIAL: Last day: $day -> changeover2");
                 } else {
                     // Middle days of multi-day booking
                     $booked[] = $day;
+                    error_log("BACKEND INITIAL: Middle day: $day -> gebucht");
                 }
                 
                 $current = strtotime('+1 day', $current);
@@ -377,12 +388,81 @@ class GlowBookingCalendar {
     }
 
     private function get_month_status_map($calendar_id, $year, $month) {
-        $map = $this->get_month_rows_latest_per_day($calendar_id, $year, $month);
-        $out = [];
-        foreach ($map as $dateKey => $fields) {
-            $out[$dateKey] = $fields['availability'] ?? '';
+        // Use the same logic as AJAX function for consistency
+        global $wpdb;
+        
+        $days_in_month = (int)(new DateTimeImmutable("$year-$month-01"))->format('t');
+        $first = sprintf('%04d-%02d-01', $year, $month);
+        $last = sprintf('%04d-%02d-%02d', $year, $month, $days_in_month);
+        
+        error_log("BACKEND INITIAL STATUS MAP: Getting bookings for $first to $last");
+        
+        // Get bookings that overlap with this month (same logic as AJAX)
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT start_date, end_date, fields FROM {$this->table} 
+             WHERE calendar_id = %d 
+             AND start_date <= %s 
+             AND end_date >= %s",
+            $calendar_id, $last, $first
+        ), ARRAY_A);
+        
+        $statusMap = [];
+        
+        foreach ($rows as $r) {
+            $fields = json_decode($r['fields'], true) ?: [];
+            $availability = $fields['availability'] ?? '';
+            
+            error_log("BACKEND INITIAL STATUS MAP: Processing booking - start: {$r['start_date']}, end: {$r['end_date']}, availability: $availability");
+            
+            if ($availability === 'gebucht') {
+                // Apply changeover logic (same as AJAX)
+                $current = strtotime($r['start_date']);
+                $end = strtotime($r['end_date']);
+                $startDate = date('Y-m-d', $current);
+                $endDate = date('Y-m-d', $end);
+                
+                while ($current <= $end) {
+                    $dateKey = date('Y-m-d', $current);
+                    
+                    // Only process days within current month
+                    if ($dateKey >= $first && $dateKey <= $last) {
+                        if ($dateKey === $startDate && $dateKey === $endDate) {
+                            // Single day booking
+                            $statusMap[$dateKey] = 'gebucht';
+                            error_log("BACKEND INITIAL STATUS MAP: Single day: $dateKey -> gebucht");
+                        } elseif ($dateKey === $startDate) {
+                            // First day of multi-day booking
+                            $statusMap[$dateKey] = 'changeover1';
+                            error_log("BACKEND INITIAL STATUS MAP: First day: $dateKey -> changeover1");
+                        } elseif ($dateKey === $endDate) {
+                            // Last day of multi-day booking
+                            $statusMap[$dateKey] = 'changeover2';
+                            error_log("BACKEND INITIAL STATUS MAP: Last day: $dateKey -> changeover2");
+                        } else {
+                            // Middle days
+                            $statusMap[$dateKey] = 'gebucht';
+                            error_log("BACKEND INITIAL STATUS MAP: Middle day: $dateKey -> gebucht");
+                        }
+                    }
+                    $current = strtotime('+1 day', $current);
+                }
+            } elseif ($availability) {
+                // For other availabilities (non-booking statuses)
+                $current = strtotime($r['start_date']);
+                $end = strtotime($r['end_date']);
+                
+                while ($current <= $end) {
+                    $dateKey = date('Y-m-d', $current);
+                    if ($dateKey >= $first && $dateKey <= $last) {
+                        $statusMap[$dateKey] = $availability;
+                    }
+                    $current = strtotime('+1 day', $current);
+                }
+            }
         }
-        return $out;
+        
+        error_log("BACKEND INITIAL STATUS MAP: Final statusMap: " . print_r($statusMap, true));
+        return $statusMap;
     }
 
     // ===== Helper für bestätigte Bookings =====
@@ -535,7 +615,7 @@ class GlowBookingCalendar {
 
         if ($pending_requests) {
             echo '<div class="notice notice-warning" style="margin-top:20px;"><h3>Offene Anfragen ('.count($pending_requests).')</h3>';
-            echo '<table class="widefat striped" style="margin-top:10px;">';
+            echo '<table class="widefat striped" style="margin-top:10px;margin-bottom:10px;">';
             echo '<thead><tr><th>Name</th><th>E-Mail</th><th>Zeitraum</th><th>Personen</th><th>Nachricht</th><th>Aktionen</th></tr></thead><tbody>';
             foreach ($pending_requests as $req) {
                 $fields = json_decode($req['fields'], true) ?: [];
@@ -573,7 +653,7 @@ class GlowBookingCalendar {
 
         if ($confirmed_bookings) {
             echo '<div class="notice notice-success" style="margin-top:20px;"><h3>Bestätigte Buchungen ('.count($confirmed_bookings).')</h3>';
-            echo '<table class="widefat striped" style="margin-top:10px;">';
+            echo '<table class="widefat striped" style="margin-top:10px;margin-bottom:10px;">';
             echo '<thead><tr><th>Name</th><th>E-Mail</th><th>Zeitraum</th><th>Personen</th><th>Nachricht</th><th>Buchungsdatum</th></tr></thead><tbody>';
             foreach ($confirmed_bookings as $booking) {
                 $fields = json_decode($booking['fields'], true) ?: [];
