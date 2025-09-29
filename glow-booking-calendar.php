@@ -344,11 +344,17 @@ class GlowBookingCalendar {
 
         // Schleife über Tage inkl. Enddatum
         $count = 0;
+        error_log("BULK EDIT: Starting bulk edit from {$start->format('Y-m-d')} to {$end->format('Y-m-d')} with availability='$availability', description='$description'");
+        
         for ($d = $start; $d <= $end; $d = $d->modify('+1 day')) {
-            $this->upsert_day($calendar_id, $d->format('Y-m-d'), $availability, $description);
+            $day_str = $d->format('Y-m-d');
+            error_log("BULK EDIT: Processing day $day_str");
+            $result = $this->upsert_day($calendar_id, $day_str, $availability, $description);
+            error_log("BULK EDIT: upsert_day returned: $result");
             $count++;
         }
 
+        error_log("BULK EDIT: Completed bulk edit, processed $count days");
         wp_send_json_success(['message' => $count . ' Tage aktualisiert']);
     }
 
@@ -952,20 +958,28 @@ class GlowBookingCalendar {
         $start = $dateYmd . ' 00:00:00';
         $end   = $dateYmd . ' 23:59:59';
 
+        error_log("UPSERT_DAY: Processing $dateYmd (calendar_id=$calendar_id, availability='$availability', description='$description')");
+
         $fields = [
             'availability' => $availability,
             'description'  => $description,
         ];
 
+        // Look for existing entries that overlap with this day (not just contained within)
         $existing = $wpdb->get_row(
             $wpdb->prepare(
                 "SELECT id FROM {$this->table}
-                 WHERE calendar_id = %d AND start_date >= %s AND end_date <= %s
+                 WHERE calendar_id = %d 
+                   AND start_date <= %s 
+                   AND end_date >= %s
                  ORDER BY id DESC LIMIT 1",
-                $calendar_id, $start, $end
+                $calendar_id, $end, $start
             ),
             ARRAY_A
         );
+        
+        error_log("UPSERT_DAY: Query for existing: SELECT id FROM {$this->table} WHERE calendar_id = $calendar_id AND start_date <= '$end' AND end_date >= '$start'");
+        error_log("UPSERT_DAY: Found existing entry: " . ($existing ? "ID " . $existing['id'] : "none"));
 
         $data = [
             'calendar_id' => $calendar_id,
@@ -978,10 +992,14 @@ class GlowBookingCalendar {
         ];
 
         if ($existing) {
-            $wpdb->update($this->table, $data, ['id' => intval($existing['id'])]);
+            error_log("UPSERT_DAY: Updating existing entry ID " . $existing['id']);
+            $result = $wpdb->update($this->table, $data, ['id' => intval($existing['id'])]);
+            error_log("UPSERT_DAY: Update result: " . ($result !== false ? "success" : "failed"));
             return intval($existing['id']);
         } else {
-            $wpdb->insert($this->table, $data);
+            error_log("UPSERT_DAY: Creating new entry");
+            $result = $wpdb->insert($this->table, $data);
+            error_log("UPSERT_DAY: Insert result: " . ($result !== false ? "success (ID: {$wpdb->insert_id})" : "failed"));
             return intval($wpdb->insert_id);
         }
     }

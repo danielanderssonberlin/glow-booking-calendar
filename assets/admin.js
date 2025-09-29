@@ -28,21 +28,48 @@
   }
 
   jQuery(function($){
+    console.log('GlowBC Admin JS loaded');
+    console.log('GlowBC object:', typeof GlowBC !== 'undefined' ? GlowBC : 'undefined');
+    
     $('#glowbc-bulk-form').on('submit', function(e){
+      console.log('Bulk form submitted');
       e.preventDefault();
+      
+      // Check if GlowBC is available
+      if (typeof GlowBC === 'undefined') {
+        console.error('GlowBC object not found');
+        alert('JavaScript-Fehler: GlowBC object nicht gefunden. Bitte Seite neu laden.');
+        return;
+      }
+      
       var $form = $(this);
+      var $status = $form.find('.glowbc-bulk-status');
+      
+      $status.text('Speichere...').css('color', '#666');
+      
       var data = $form.serializeArray();
       data.push({name: 'action', value: 'glowbc_bulk_save'});
       data.push({name: 'nonce', value: GlowBC.nonce});
+      
+      console.log('Sending AJAX request with data:', data);
 
-      $.post(GlowBC.ajaxUrl, data, function(res){
-        if(res.success){
-          $form.find('.glowbc-bulk-status').text(res.data.message).css('color','green');
-          setTimeout(()=>location.reload(), 800);
-        } else {
-          $form.find('.glowbc-bulk-status').text(res.data.message).css('color','red');
-        }
-      });
+      $.post(GlowBC.ajaxUrl, data)
+        .done(function(res){
+          console.log('AJAX response:', res);
+          if(res && res.success){
+            $status.text(res.data.message).css('color','green');
+            setTimeout(function(){
+              location.reload();
+            }, 800);
+          } else {
+            var message = (res && res.data && res.data.message) ? res.data.message : 'Unbekannter Fehler';
+            $status.text(message).css('color','red');
+          }
+        })
+        .fail(function(xhr, status, error){
+          console.error('AJAX failed:', status, error);
+          $status.text('AJAX-Fehler: ' + error).css('color','red');
+        });
     });
   });
 
