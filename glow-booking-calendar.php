@@ -5,7 +5,6 @@
  * Version: 0.3.0
  * Author: Glow
  */
-error_log("Glow Booking Calendar loaded");
 if (!defined('ABSPATH')) exit;
 
 require_once plugin_dir_path(__FILE__) . 'includes/shortcodes.php';

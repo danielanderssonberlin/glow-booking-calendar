@@ -126,9 +126,11 @@
   function loadAdminCalendar(year, month) {
     const $cal = $('.glowbc-calendar').first();
     const $table = $('.glowbc-table').first();
-    const calendarId = $cal.data('calendar-id');
+    let calendarId = $cal.data('calendar-id') || 1; // Default to 1 if not found
     
-    // Load calendar
+    console.log('Calendar ID found:', calendarId, 'Year:', year, 'Month:', month);
+    
+    // Load calendar first
     $.post(GlowBC.ajaxUrl, {
       action: 'glowbc_get_admin_calendar',
       nonce: GlowBC.nonce,
@@ -138,28 +140,33 @@
     }).done(function(res){
       if (res.success) {
         $cal.replaceWith(res.data.html);
+        
+        // After calendar is loaded, load table with the same calendar_id
+        console.log('Loading table for calendar_id:', calendarId);
+        $.post(GlowBC.ajaxUrl, {
+          action: 'glowbc_get_admin_table',
+          nonce: GlowBC.nonce,
+          calendar_id: calendarId,
+          y: year,
+          m: month
+        }).done(function(res){
+          console.log('Table response:', res);
+          if (res.success) {
+            console.log('Replacing table with new HTML');
+            $table.replaceWith(res.data.html);
+            console.log('Table replaced successfully');
+          } else {
+            console.error('Fehler beim Laden der Tabelle:', res.data.message);
+          }
+        }).fail(function(){
+          console.error('Netzwerkfehler beim Laden der Tabelle');
+        });
+        
       } else {
         alert(res.data.message);
       }
     }).fail(function(){
       alert('Netzwerkfehler beim Laden des Kalenders');
-    });
-    
-    // Load table for the same month
-    $.post(GlowBC.ajaxUrl, {
-      action: 'glowbc_get_admin_table',
-      nonce: GlowBC.nonce,
-      calendar_id: calendarId,
-      y: year,
-      m: month
-    }).done(function(res){
-      if (res.success) {
-        $table.replaceWith(res.data.html);
-      } else {
-        console.error('Fehler beim Laden der Tabelle:', res.data.message);
-      }
-    }).fail(function(){
-      console.error('Netzwerkfehler beim Laden der Tabelle');
     });
   }
 

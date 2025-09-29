@@ -252,14 +252,18 @@ function glowbc_ajax_get_admin_table(){
     check_ajax_referer('glowbc-nonce', 'nonce');
     if(!current_user_can('manage_options')){ wp_send_json_error(['message'=>'Unauthorized'], 403); }
 
-    $calendar_id = intval($_POST['calendar_id'] ?? 0);
+    $calendar_id = intval($_POST['calendar_id'] ?? 1); // Default to 1 if not provided
     $year = intval($_POST['y'] ?? date('Y'));
     $month = intval($_POST['m'] ?? date('n'));
     
-    if(!$calendar_id){ wp_send_json_error(['message'=>'Ungültige Kalender-ID']); }
+    error_log("ADMIN TABLE: Loading table for calendar_id=$calendar_id, year=$year, month=$month");
+    error_log("ADMIN TABLE: POST data: " . print_r($_POST, true));
+    
+    // Use default calendar_id of 1 if none provided (most installations have only one calendar)
+    if(!$calendar_id){ $calendar_id = 1; }
 
-    // Get the plugin instance to access its methods
-    $plugin = GlowBookingCalendar::getInstance();
+    global $wpdb;
+    $table = $wpdb->prefix . 'glow_bookings';
     
     // Generate days for the month
     $first_day = new DateTime("$year-$month-01");
@@ -280,10 +284,62 @@ function glowbc_ajax_get_admin_table(){
           </thead><tbody>';
 
     foreach ($days as $day) {
-        $row = $plugin->get_entry_for_day($calendar_id, $day);
+        // Get entry for this day - find bookings that overlap with this day
+        $day_start = $day->format('Y-m-d 00:00:00');
+        $day_end   = $day->format('Y-m-d 23:59:59');
+        
+        // Find bookings that overlap with this day:
+        // - Booking starts before or on this day AND ends on or after this day
+        $sql = $wpdb->prepare(
+            "SELECT * FROM {$table}
+             WHERE calendar_id = %d
+               AND start_date <= %s
+               AND end_date >= %s
+             ORDER BY id DESC
+             LIMIT 1",
+            $calendar_id, $day_end, $day_start
+        );
+        
+        error_log("ADMIN TABLE: Checking day {$day->format('Y-m-d')} with query: " . $sql);
+        
+        $row = $wpdb->get_row($sql, ARRAY_A);
+        if ($row && !empty($row['fields'])) {
+            $row['fields'] = json_decode($row['fields'], true) ?: [];
+            error_log("ADMIN TABLE: Found booking for {$day->format('Y-m-d')}: " . print_r($row['fields'], true));
+            error_log("ADMIN TABLE: Available field keys: " . implode(', ', array_keys($row['fields'])));
+        } else {
+            $row = ['fields' => [], 'id' => ''];
+            error_log("ADMIN TABLE: No booking found for {$day->format('Y-m-d')}");
+        }
         $availability = $row['fields']['availability'] ?? '';
         $description  = $row['fields']['description'] ?? '';
         $row_id = $row['id'] ?? '';
+        
+        // Format description: Name (Anzahl Personen)
+        $first_name = $row['fields']['first_name'] ?? '';
+        $last_name = $row['fields']['last_name'] ?? '';
+        $persons = $row['fields']['persons'] ?? '';
+        $kids_0_6 = intval($row['fields']['kids_0_6'] ?? 0);
+        $kids_7_16 = intval($row['fields']['kids_7_16'] ?? 0);
+        
+        // Build full name
+        $name = trim($first_name . ' ' . $last_name);
+        
+        // Calculate total guests (adults + kids)
+        $total_persons = intval($persons) + $kids_0_6 + $kids_7_16;
+        
+        error_log("ADMIN TABLE: Extracted first_name='$first_name', last_name='$last_name', persons='$persons', kids_0_6='$kids_0_6', kids_7_16='$kids_7_16' for {$day->format('Y-m-d')}");
+        error_log("ADMIN TABLE: Calculated name='$name', total_persons='$total_persons' for {$day->format('Y-m-d')}");
+        
+        if (!empty($name) && $total_persons > 0) {
+            $description = $name . ' (' . $total_persons . ' Personen)';
+        } elseif (!empty($name)) {
+            $description = $name;
+        } elseif ($total_persons > 0) {
+            $description = '(' . $total_persons . ' Personen)';
+        }
+        
+        error_log("ADMIN TABLE: Final description='$description' for {$day->format('Y-m-d')}");
 
         $dateLabel = esc_html($day->format('D, d.m.Y'));
         $dateKey   = esc_attr($day->format('Y-m-d'));
