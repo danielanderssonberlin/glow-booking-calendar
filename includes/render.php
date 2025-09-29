@@ -17,25 +17,58 @@ if (!function_exists('glowbc_get_entries_for_month_frontend')) {
         $booked = [];
         $changeover = [];
 
+        // Debug: Log what we found
+        error_log("Frontend Debug - Calendar ID: $calendar_id, Month: $month");
+        error_log("Frontend Debug - Found " . count($results) . " results");
+
         foreach($results as $r) {
             $fields = json_decode($r['fields'] ?? '[]', true) ?: [];
             $availability = $fields['availability'] ?? '';
 
-            $current = strtotime($r['start_date']);
-            $end     = strtotime($r['end_date']);
+            error_log("Frontend Debug - Entry: " . $r['start_date'] . " to " . $r['end_date'] . ", availability: '$availability'");
+
+            // Skip if not a booking
+            if ($availability !== 'gebucht') {
+                error_log("Frontend Debug - Skipping entry with availability: '$availability'");
+                continue;
+            }
+
+            // Normalize dates to Y-m-d format for comparison
+            $startDate = date('Y-m-d', strtotime($r['start_date']));
+            $endDate = date('Y-m-d', strtotime($r['end_date']));
+            $current = strtotime($startDate);
+            $end = strtotime($endDate);
+
+            error_log("Frontend Debug - Processing booking: $startDate to $endDate (normalized)");
 
             while($current <= $end) {
                 $day = date('Y-m-d', $current);
-                if ($availability === 'gebucht') {
+                
+                // Apply changeover logic like in backend
+                if ($startDate === $endDate) {
+                    // Single day booking
                     $booked[] = $day;
-                } elseif ($availability === 'changeover1') {
+                    error_log("Frontend Debug - Single day booking: $day -> booked");
+                } elseif ($day === $startDate) {
+                    // First day of multi-day booking
                     $changeover['changeover1'][] = $day;
-                } elseif ($availability === 'changeover2') {
+                    error_log("Frontend Debug - First day: $day -> changeover1");
+                } elseif ($day === $endDate) {
+                    // Last day of multi-day booking
                     $changeover['changeover2'][] = $day;
+                    error_log("Frontend Debug - Last day: $day -> changeover2");
+                } else {
+                    // Middle days of multi-day booking
+                    $booked[] = $day;
+                    error_log("Frontend Debug - Middle day: $day -> booked");
                 }
+                
                 $current = strtotime('+1 day', $current);
             }
         }
+
+        error_log("Frontend Debug - Final booked: " . json_encode($booked));
+        error_log("Frontend Debug - Final changeover: " . json_encode($changeover));
 
         return [
             'booked' => $booked,
@@ -114,7 +147,8 @@ if (!function_exists('glowbc_render_calendar_html')) {
         $html .= '<div class="glowbc-legend-frontend">';
         $html .= '<span><i class="legend-box status-gebucht"></i> gebucht</span>';
         $html .= '<span><i class="legend-box status-frei"></i> frei</span>';
-        $html .= '<span><i class="legend-box status-changeover"></i> Wechsel</span>';
+        $html .= '<span><i class="legend-box status-changeover1"></i> Anreise</span>';
+        $html .= '<span><i class="legend-box status-changeover2"></i> Abreise</span>';
         $html .= '</div>';
 
         return $html;

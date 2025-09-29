@@ -104,18 +104,34 @@ class GlowBookingCalendar {
             $fields = json_decode($r['fields'], true) ?: [];
             $availability = $fields['availability'] ?? '';
 
-            $current = strtotime($r['start_date']);
-            $end     = strtotime($r['end_date']);
+            // Skip if not a booking
+            if ($availability !== 'gebucht') {
+                continue;
+            }
+
+            $startDate = $r['start_date'];
+            $endDate = $r['end_date'];
+            $current = strtotime($startDate);
+            $end = strtotime($endDate);
 
             while($current <= $end) {
                 $day = date('Y-m-d', $current);
-                if($availability === 'gebucht') {
+                
+                // Apply changeover logic like in backend AJAX and frontend
+                if ($startDate === $endDate) {
+                    // Single day booking
                     $booked[] = $day;
-                } elseif($availability === 'changeover1') {
+                } elseif ($day === $startDate) {
+                    // First day of multi-day booking
                     $changeover['changeover1'][] = $day;
-                } elseif($availability === 'changeover2') {
+                } elseif ($day === $endDate) {
+                    // Last day of multi-day booking
                     $changeover['changeover2'][] = $day;
+                } else {
+                    // Middle days of multi-day booking
+                    $booked[] = $day;
                 }
+                
                 $current = strtotime('+1 day', $current);
             }
         }
