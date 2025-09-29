@@ -124,22 +124,34 @@ function glowbc_ajax_get_admin_calendar(){
     }
 
     $statusMap = []; // get_month_status_map logic
-    $map = []; // get_month_rows_latest_per_day
     $first = sprintf('%04d-%02d-01 00:00:00', $year, $month);
     $last = sprintf('%04d-%02d-%02d 23:59:59', $year, $month, $days_in_month);
+    
+    // Verwende die gleiche Logik wie das Frontend: Buchungen die den Monat überschneiden
     $rows = $wpdb->get_results($wpdb->prepare(
-        "SELECT id, start_date, fields FROM {$table} WHERE calendar_id = %d AND start_date >= %s AND end_date <= %s ORDER BY id DESC",
-        $calendar_id, $first, $last
+        "SELECT start_date, end_date, fields FROM {$table} WHERE calendar_id = %d AND start_date <= %s AND end_date >= %s",
+        $calendar_id, $last, $first
     ), ARRAY_A);
+    
+    // Iteriere durch alle Tage jeder Buchung (wie im Frontend)
     foreach ($rows as $r) {
-        $dateKey = substr($r['start_date'], 0, 10);
-        if (!isset($map[$dateKey])) {
-            $fields = !empty($r['fields']) ? json_decode($r['fields'], true) : [];
-            $map[$dateKey] = $fields;
+        $fields = !empty($r['fields']) ? json_decode($r['fields'], true) : [];
+        $availability = $fields['availability'] ?? '';
+        
+        if ($availability) {
+            $current = strtotime($r['start_date']);
+            $end = strtotime($r['end_date']);
+            
+            while ($current <= $end) {
+                $dateKey = date('Y-m-d', $current);
+                // Nur Tage im aktuellen Monat berücksichtigen
+                if ($dateKey >= sprintf('%04d-%02d-01', $year, $month) && 
+                    $dateKey <= sprintf('%04d-%02d-%02d', $year, $month, $days_in_month)) {
+                    $statusMap[$dateKey] = $availability;
+                }
+                $current = strtotime('+1 day', $current);
+            }
         }
-    }
-    foreach ($map as $dateKey => $fields) {
-        $statusMap[$dateKey] = $fields['availability'] ?? '';
     }
 
     // Navigation
