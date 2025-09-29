@@ -21,34 +21,18 @@ if (!function_exists('glowbc_get_entries_for_month_frontend')) {
             $fields = json_decode($r['fields'] ?? '[]', true) ?: [];
             $availability = $fields['availability'] ?? '';
 
-            // Skip if not a booking
-            if ($availability !== 'gebucht') {
-                continue;
-            }
-
-            $startDate = $r['start_date'];
-            $endDate = $r['end_date'];
-            $current = strtotime($startDate);
-            $end = strtotime($endDate);
+            $current = strtotime($r['start_date']);
+            $end     = strtotime($r['end_date']);
 
             while($current <= $end) {
                 $day = date('Y-m-d', $current);
-                
-                // Apply changeover logic like in backend
-                if ($startDate === $endDate) {
-                    // Single day booking
+                if ($availability === 'gebucht') {
                     $booked[] = $day;
-                } elseif ($day === $startDate) {
-                    // First day of multi-day booking
+                } elseif ($availability === 'changeover1') {
                     $changeover['changeover1'][] = $day;
-                } elseif ($day === $endDate) {
-                    // Last day of multi-day booking
+                } elseif ($availability === 'changeover2') {
                     $changeover['changeover2'][] = $day;
-                } else {
-                    // Middle days of multi-day booking
-                    $booked[] = $day;
                 }
-                
                 $current = strtotime('+1 day', $current);
             }
         }
