@@ -1279,7 +1279,7 @@ class GlowBookingCalendar {
                 'kids_0_6' => isset($row[$indices['kids_0_6']]) ? intval($row[$indices['kids_0_6']]) : 0,
                 'kids_7_16' => isset($row[$indices['kids_7_16']]) ? intval($row[$indices['kids_7_16']]) : 0,
                 'message' => $message,
-                'availability' => '',
+                'availability' => 'gebucht',
                 'description' => '',
             ];
 
